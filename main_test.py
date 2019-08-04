@@ -1027,7 +1027,7 @@ class RubiksSolver():
             'solve_status': 0
         })
 
-        self.cubesolution = ["U'"]
+        self.cubesolution = ["U'", "D2"]
         # stop this thread if there's no solution
         if not self.cubesolution:
             self.thread_stopper.set()

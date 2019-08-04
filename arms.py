@@ -252,10 +252,10 @@ class Arm:
 
 class ArmSolutionGenerator:
     def __init__(self, down, left, up, right):
-        self.up = up
-        self.right = right
-        self.down = down
-        self.left = left
+        self.up = down
+        self.right = left
+        self.down = up
+        self.left = right
         self.reset_arm_solution()
 
     def fix(self):
@@ -331,7 +331,7 @@ class ArmSolutionGenerator:
             self.rotate_back(turns, way)
 
     def rotate_up(self, turns, way):
-        self.arms_solution += [self.down.move(State.FORWARD)]
+        self.arms_solution += [self.up.move(State.FORWARD)]
 
         if turns == State.TURN:
             if way == State.CLOCKWISE:
@@ -351,6 +351,28 @@ class ArmSolutionGenerator:
         elif turns == State.DOUBLE_TURN:
             self.rotate_up(State.TURN, way)
             self.rotate_up(State.TURN, way)
+
+    def rotate_down(self, turns, way):
+        self.arms_solution += [self.down.move(State.FORWARD)]
+
+        if turns == State.TURN:
+            if way == State.CLOCKWISE:
+                self.arms_solution += [
+                        self.down.rotate(way),
+                        self.down.move(State.BACK),
+                        self.down.rotate(self.__inverse_way(way)),
+                        self.down.move(State.FORWARD)
+                    ]
+            elif way == State.ANTICLOCKWISE:
+                self.arms_solution += [
+                        self.down.move(State.BACK),
+                        self.down.rotate(self.__inverse_way(way)),
+                        self.down.move(State.FORWARD),
+                        self.down.rotate(way)
+                    ]
+        elif turns == State.DOUBLE_TURN:
+            self.rotate_down(State.TURN, way)
+            self.rotate_down(State.TURN, way)
 
     def rotate_right(self, turns, way):
         if turns == State.TURN:
@@ -372,7 +394,27 @@ class ArmSolutionGenerator:
             self.rotate_right(State.TURN, way)
             self.rotate_right(State.TURN, way)
 
-    def rotate_down(self, turns, way):
+    def rotate_left(self, turns, way):
+        if turns == State.TURN:
+            if way == State.CLOCKWISE:
+                self.arms_solution += [
+                        self.left.rotate(way),
+                        self.left.move(State.BACK),
+                        self.left.rotate(self.__inverse_way(way)),
+                        self.left.move(State.FORWARD)
+                    ]
+            elif way == State.ANTICLOCKWISE:
+                self.arms_solution += [
+                        self.left.move(State.BACK),
+                        self.left.rotate(self.__inverse_way(way)),
+                        self.left.move(State.FORWARD),
+                        self.left.rotate(way)
+                    ]
+        elif turns == State.DOUBLE_TURN:
+            self.rotate_left(State.TURN, way)
+            self.rotate_left(State.TURN, way)
+
+    def rotate_down_old(self, turns, way):
         if turns == State.TURN:
             if way == State.CLOCKWISE:
                 self.arms_solution += [
@@ -419,26 +461,6 @@ class ArmSolutionGenerator:
         elif turns == State.DOUBLE_TURN:
             self.rotate_down(State.TURN, way)
             self.rotate_down(State.TURN, way)
-
-    def rotate_left(self, turns, way):
-        if turns == State.TURN:
-            if way == State.CLOCKWISE:
-                self.arms_solution += [
-                        self.left.rotate(way),
-                        self.left.move(State.BACK),
-                        self.left.rotate(self.__inverse_way(way)),
-                        self.left.move(State.FORWARD)
-                    ]
-            elif way == State.ANTICLOCKWISE:
-                self.arms_solution += [
-                        self.left.move(State.BACK),
-                        self.left.rotate(self.__inverse_way(way)),
-                        self.left.move(State.FORWARD),
-                        self.left.rotate(way)
-                    ]
-        elif turns == State.DOUBLE_TURN:
-            self.rotate_left(State.TURN, way)
-            self.rotate_left(State.TURN, way)
 
     def rotate_cube_towards_right(self):
         self.arms_solution += [

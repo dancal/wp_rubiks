@@ -66,7 +66,7 @@ class Solver(Page):
             filename = '/dev/shm/rubiks.jpg'
             if os.path.isfile(filename):
                 img 	= cv2.imread(filename, cv2.IMREAD_COLOR)
-                img 	= Image.fromarray(img).resize((213,160))
+                img 	= Image.fromarray(img).resize((200,145))
                 imgtk 	= ImageTk.PhotoImage(image=img)
                 self.display1.imgtk = imgtk #Shows frame for display 1
                 self.display1.configure(image=imgtk)
@@ -80,19 +80,19 @@ class Solver(Page):
             if idx == 0:
                cubename = 'F'
             elif idx == 1:
-               cubename = 'L'
+               cubename = 'R'
             elif idx == 2:
                cubename = 'B'
             elif idx == 3:
-               cubename = 'R'
+               cubename = 'L'
             elif idx == 4:
-               cubename = 'U'
-            elif idx == 5:
                cubename = 'D'
+            elif idx == 5:
+               cubename = 'U'
 
             if os.path.isfile(filename) and os.path.getsize(filename) > 10:
                 scanimg = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-                scanimg = Image.fromarray(scanimg).resize((100,80))
+                scanimg = Image.fromarray(scanimg).resize((90,80))
                 scanout = ImageTk.PhotoImage(scanimg)
                 self.scanImageFrame[cube_name].configure(image=scanout)
                 self.scanImageFrame[cube_name].image = scanout
@@ -105,7 +105,7 @@ class Solver(Page):
     def __init__(self, *args, **kwargs):
         super(Solver, self).__init__(*args, **kwargs)
         
-        self.cubeScanList		= ['F', 'L', 'B', 'R', 'U', 'D'] 
+        self.cubeScanList		= ['F', 'R', 'B', 'L', 'D', 'U'] 
         self.scanImageFrame		= {}
 
         self.channel 			= 'solver'
@@ -117,7 +117,7 @@ class Solver(Page):
         self.grip_labelframe.pack(side='left', fill=tk.Y, ipadx=2, ipady=2, padx=20, pady=20)
 
         # Side Grip/Stop Buttons
-        self.button_names = ['Fix', 'Release', 'Stop', 'Cut Power']
+        self.button_names = ['Fix', 'Release', 'Stop', 'Random']
         max_button_width = max(map(lambda x: len(x), self.button_names))
         self.buttons = {}
         for button_name in self.button_names:
@@ -158,15 +158,15 @@ class Solver(Page):
         self.button_names += new_buttons
         self.buttons['Solve Cube'].config(state='disabled')
 
-        #self.video_labelframe = tk.LabelFrame(self, text='video')
-        #self.video_labelframe.pack(side='left', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=True)
+        self.video_labelframe = tk.LabelFrame(self, text='video')
+        self.video_labelframe.pack(side='left', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=True)
 
-        #self.display1 = tk.Label(self.video_labelframe, text='video')
-        #self.display1.grid(row=0, column=0, padx=0, pady=0)  #Display 1
+        self.display1 = tk.Label(self.video_labelframe, text='video')
+        self.display1.grid(row=0, column=0, padx=0, pady=0)  #Display 1
 
         ##############
         self.cube_labelframe = tk.LabelFrame(self, text='cube screen')
-        self.cube_labelframe.pack(side='right', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=True)
+        self.cube_labelframe.pack(side='top', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=True)
 
         self.scanImageFrame["U"]	= tk.Label(self.cube_labelframe, text="Up")
         self.scanImageFrame["U"].grid(row=0, column=1, padx=0, pady=0)
@@ -186,7 +186,7 @@ class Solver(Page):
         self.scanImageFrame["D"]	= tk.Label(self.cube_labelframe, text="Down")
         self.scanImageFrame["D"].grid(row=2, column=1, padx=0, pady=0)
 
-        #self.show_frame()
+        self.show_frame()
         self.show_scan_cube_image()
         self.after(50, self.refresh_page)
 
@@ -375,7 +375,7 @@ class Arms(Page):
 
         self.button_frame = tk.LabelFrame(self, text='Actions')
         self.button_frame.pack(side='top', fill=tk.BOTH, expand=True, ipadx=10, ipady=2, padx=15, pady=5)
-        self.button_names = ['Load Config', 'Save Config', 'Cut Power']
+        self.button_names = ['Load Config', 'Save Config', 'Random']
         max_width = max(map(lambda x: len(x), self.button_names))
         self.buttons = {}
         for btn_name in self.button_names:
@@ -939,13 +939,13 @@ class RubiksSolver():
         #    np.rot90(numeric_faces[2], k=1, axes=(1, 0)),  # rotate by 90 degrees clockwise
         #    np.rot90(numeric_faces[4], k=2)  # rotate by 180 degrees
         #]
-        # F = 0, R = 1, B = 2, L = 3, U = 4, D = 5
+        # F = 0, R = 1, B = 2, L = 3, U = 5, D = 4
         reoriented_faces = [
             numeric_faces[5],
-            numeric_faces[3],
+            numeric_faces[1],
             numeric_faces[0],
             numeric_faces[4],
-            numeric_faces[1],
+            numeric_faces[3],
             numeric_faces[2]
         ]
 
@@ -1158,8 +1158,9 @@ if __name__ == '__main__':
                         elif 'solve cube' == msg:
                             rubiks.solve() # change state here
                         elif 'stop' == msg:
+                            rubiks.stop(hard=True) # change state here
                             rubiks.stop(hard=False) # change state here
-                        elif 'cut power' == msg:
+                        elif 'random' == msg:
                             rubiks.stop(hard=True) # change state here
                         elif 'fix' == msg:
                             rubiks.command(config=config, type='system', action='fix') # reflexive state here
@@ -1179,6 +1180,7 @@ if __name__ == '__main__':
                 # transition to rest from the solving state if the cube got solved
                 if rubiks.state == 'solving' and rubiks.is_finished(None):
                     rubiks.success()
+                    rubiks.command( config=config, type='system', action='release') # reflexive state here
                     logger.info('the rubik\'s cube got solved')
 
             sleep(0.001)
