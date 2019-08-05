@@ -59,7 +59,7 @@
  - 2019.07.11 : 3D 프린터 Rubiks 부품 추가 프린트
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-11-1.jpg)
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-11-2.jpg)
- [![](https://youtu.be/7tGZmFzIkLU/0.jpg")](https://youtu.be/7tGZmFzIkLU")
+ [![](https://youtu.be/7tGZmFzIkLU/0.jpg")](https://youtu.be/7tGZmFzIkLU?t=0")
 
  - 2019.07.13 : 3D 프린터 Rubiks 부품 추가 프린트
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-13-1.jpg)
@@ -68,7 +68,7 @@
  - 2019.07.15 : Rasberry PI 3 B+ 도착
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-15-1.jpg)
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-15-2.jpg)
- [![](https://youtu.be/4C-3Fx2rG8M/0.jpg")](https://youtu.be/4C-3Fx2rG8M")
+ [![](https://youtu.be/4C-3Fx2rG8M/0.jpg")](https://youtu.be/4C-3Fx2rG8M?t=0")
 
  - 2019.07.15 : Rubiks Robot 동작 테스트
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-15-3.jpg)
