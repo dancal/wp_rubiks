@@ -75,7 +75,7 @@
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-16-2.jpg) 
  - 2019.07.17 : Rubiks 소프트웨어 개발 시작 ( opencv install ) 
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-17-1.jpg) 
- - 2019.07.05 : 루빅 큐브 구매
+ - 2019.07.29 : 루빅 큐브 구매
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-29-1.jpg)
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-29-2.jpg)
  - 2019.07.30 : 3D 프린트  Rubiks 부품 추가 프린트
@@ -85,6 +85,8 @@
  - 2019.08.04 : Rubiks 소프트웨어 동작 테스트 
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-04-1.jpg)
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-04-2.jpg)
+ - 2019.08.?? : Rubiks 소프트웨어 릴리즈 및 버그 픽스
+ - 2019.08.?? : Rubiks LCD 장착.
 
 # 도움주신분
  - 전규안
