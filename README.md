@@ -1,6 +1,7 @@
 # Editor.md
 
 # Rubiks Solver Robot for Rasberry PI 3 B+
+- 아직 작업중. 작업률 ( 80% )
 
 ![](http://www.widerplanet.com/inc/images/common/widerplanet_logo.png)
  - 와이더플래닛 사내 동아리( 와삼디 ) 첫번째 로봇 작품.
