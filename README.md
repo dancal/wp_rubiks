@@ -1,5 +1,3 @@
-# Editor.md
-
 # Rubiks Solver Robot for Rasberry PI 3 B+
 - 아직 작업중. 작업률 ( 80% )
 
