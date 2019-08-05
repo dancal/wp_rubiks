@@ -11,6 +11,7 @@
  - Maestro 12 chanel servo control
 
 # 소프트웨어
+ - ![](https://github.com/dancal/wp_rubiks/blob/master/history/GUI.png)
  - 소프트웨어는 https://github.com/RobertLucian/rubiks-cube-solver 를 베이스로 개발.
  - thanks for RobertLucian
  - maestro 12 chanel servo controller over USB - https://github.com/FRC4564/Maestro 사용.
