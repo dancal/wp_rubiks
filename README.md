@@ -86,6 +86,7 @@
  - 2019.07.30 : 3D 프린트  Rubiks 부품 추가 프린트
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-07-31-1.jpg)
  - 2019.08.04 : Rubiks 소프트웨어 동작 테스트 
+ ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-05-1.jpg)
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-04-1.jpg)
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-04-2.jpg)
  - 2019.08.?? : Rubiks 소프트웨어 릴리즈 및 버그 픽스
