@@ -7,6 +7,7 @@ from sklearn.cluster import KMeans
 from operator import itemgetter
 from collections import Counter
 
+import numpy
 import tkinter as tk
 import threading as td
 import cv2
@@ -63,36 +64,41 @@ class Solver(Page):
         if isbusy:
             self.after(50, self.show_frame)
         else:
-            filename = '/dev/shm/rubiks.jpg'
-            if os.path.isfile(filename):
-                img 	= cv2.imread(filename, cv2.IMREAD_COLOR)
-                img 	= Image.fromarray(img).resize((200,145))
-                imgtk 	= ImageTk.PhotoImage(image=img)
+            scale       	= 2.5
+            v_width    		= int(640 / scale)
+            v_height 		= int(480 / scale)
+            ok, frame 		= camera.cam.read()
+            if ok:
+                frame 			= cv2.flip(frame, 1)
+                camera.cv_image	= cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA) 
+                img				= Image.fromarray(camera.cv_image).resize((v_width,v_height))
+                imgtk 			= ImageTk.PhotoImage(image=img)
                 self.display1.imgtk = imgtk #Shows frame for display 1
                 self.display1.configure(image=imgtk)
-
-            self.after(50, self.show_frame)
-            
+                self.after(30, self.show_frame)
+            else:
+                self.after(50, self.show_frame)
+        
     def show_scan_cube_image(self):
-        index = 0
-        for idx, cube_name in enumerate(self.cubeScanList):
-            filename = './images/{}.png'.format(idx)
-            if idx == 0:
-               cubename = 'F'
-            elif idx == 1:
-               cubename = 'R'
-            elif idx == 2:
-               cubename = 'B'
-            elif idx == 3:
-               cubename = 'L'
-            elif idx == 4:
-               cubename = 'D'
-            elif idx == 5:
-               cubename = 'U'
+        for idx, scanimg in enumerate(camera.cv_images):
 
-            if os.path.isfile(filename) and os.path.getsize(filename) > 10:
-                scanimg = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-                scanimg = Image.fromarray(scanimg).resize((90,80))
+            cubename = ""
+            if idx == 0:
+               cube_name = 'F'
+            elif idx == 1:
+               cube_name = 'R'
+            elif idx == 2:
+               cube_name = 'B'
+            elif idx == 3:
+               cube_name = 'L'
+            elif idx == 4:
+               cube_name = 'D'
+            elif idx == 5:
+               cube_name = 'U'
+
+            if scanimg.any():
+                #scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGBA) 
+                scanimg = Image.fromarray(scanimg).resize((80,70))
                 scanout = ImageTk.PhotoImage(scanimg)
                 self.scanImageFrame[cube_name].configure(image=scanout)
                 self.scanImageFrame[cube_name].image = scanout
@@ -159,7 +165,7 @@ class Solver(Page):
         self.buttons['Solve Cube'].config(state='disabled')
 
         self.video_labelframe = tk.LabelFrame(self, text='video')
-        self.video_labelframe.pack(side='left', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=True)
+        self.video_labelframe.pack(side='left', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=False)
 
         self.display1 = tk.Label(self.video_labelframe, text='video')
         self.display1.grid(row=0, column=0, padx=0, pady=0)  #Display 1
@@ -169,22 +175,22 @@ class Solver(Page):
         self.cube_labelframe.pack(side='top', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=True)
 
         self.scanImageFrame["U"]	= tk.Label(self.cube_labelframe, text="Up")
-        self.scanImageFrame["U"].grid(row=0, column=1, padx=0, pady=0)
+        self.scanImageFrame["U"].grid(row=0, column=1, padx=1, pady=1)
 
         self.scanImageFrame["L"]	= tk.Label(self.cube_labelframe, text="Left")
-        self.scanImageFrame["L"].grid(row=1, column=0, padx=0, pady=0)
+        self.scanImageFrame["L"].grid(row=1, column=0, padx=1, pady=1)
 
         self.scanImageFrame["F"]	= tk.Label(self.cube_labelframe, text="Font")
-        self.scanImageFrame["F"].grid(row=1, column=1, padx=0, pady=0)
+        self.scanImageFrame["F"].grid(row=1, column=1, padx=1, pady=1)
 
         self.scanImageFrame["R"]	= tk.Label(self.cube_labelframe, text="Right")
-        self.scanImageFrame["R"].grid(row=1, column=2, padx=0, pady=0)
+        self.scanImageFrame["R"].grid(row=1, column=2, padx=1, pady=1)
 
         self.scanImageFrame["B"]	= tk.Label(self.cube_labelframe, text="Back")
-        self.scanImageFrame["B"].grid(row=1, column=3, padx=0, pady=0)
+        self.scanImageFrame["B"].grid(row=1, column=3, padx=1, pady=1)
 
         self.scanImageFrame["D"]	= tk.Label(self.cube_labelframe, text="Down")
-        self.scanImageFrame["D"].grid(row=2, column=1, padx=0, pady=0)
+        self.scanImageFrame["D"].grid(row=2, column=1, padx=1, pady=1)
 
         self.show_frame()
         self.show_scan_cube_image()
@@ -266,7 +272,7 @@ class Camera(Page):
 
         # right big frame (actually label) that includes the preview image from the camera
         self.images = tk.Label(self, text='No captured image', bd=2, relief=tk.RIDGE)
-        self.images.pack(side='top', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=2, expand=False)
+        self.images.pack(side='left', fill=tk.BOTH, ipadx=2, ipady=2, padx=20, pady=20, expand=True)
 
         # load the config file on app launch
         self.button_action(self.button_names[0])
@@ -486,8 +492,10 @@ class PiCameraPhotos():
         # self.stream = io.BytesIO() 
         """
 
-        self.isbusy		= False 
-        #self.cam		= cv2.VideoCapture(0)
+        self.isbusy			= False 
+        self.cam			= cv2.VideoCapture(0)
+        self.cv_image		= {}
+        self.cv_images		= []
         # self.cam.set(3, 640)
         # self.cam.set(4, 480)
 		
@@ -499,32 +507,21 @@ class PiCameraPhotos():
         Captures an image from the Pi Camera.
         :return: A Pillow.Image image.
         """
-        self.isbusy		= True
-        os.system("fswebcam -r 640x480 --jpeg 80 --invert /dev/shm/rubiks.jpg")
-        #os.system("fswebcam -r 640x480 /dev/shm/rubiks.jpg")
-        img = cv2.imread('/dev/shm/rubiks.jpg', cv2.IMREAD_COLOR)
+        self.isbusy	= True
 
-        x=30
-        y=10
-        h = img.shape[0] - 50
-        w = img.shape[1] - 210
-        img = img[y:y+h, x:x+w]
+        x			= 30
+        y			= 10
+        img			= self.cv_image;
+        h 			= img.shape[0] - 50
+        w 			= img.shape[1] - 210
+        img 		= img[y:y+h, x:x+w]
 
-        img = cv2.bilateralFilter(img, 9, 75, 75)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = ~img
+        img 		= cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        img 		= cv2.bilateralFilter(img, 9, 75, 75)
+        img 		= cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
 
-        cv2.imwrite('/dev/shm/rubiks.jpg', img)
+        self.isbusy	= False
 
-        dimensions = img.shape
-        channels = img.shape[2]
- 
-        self.isbusy		= False
-
-        # print('Image Dimension    : ',dimensions)
-        # print('Image Height       : ',height)
-        # print('Image Width        : ',width)
-        # print('Number of Channels : ',channels)
         return img
 
     def get_camera_roi(self, xoff, yoff, dim, pad):
@@ -558,42 +555,6 @@ class PiCameraPhotos():
         # convert the captured image to a numpy array
         img = self.capture()
         img = np.asarray(img)
-
-        # # apply CLAHE algorithm to increase contrast in
-        # # low lighting areas of the image and preserve
-        # # the contrast in good ones
-        # img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
-        # clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(6, 6))
-        # img[:, :, 0] = clahe.apply(img[:, :, 0])
-        #img = cv2.cvtColor(img, cv2.COLOR_LAB2RGB)
-
-        # img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
-
-        # apply a Gaussian blur
-        #img = cv2.fastNlMeansDenoisingColored(img,None,10,10,7,21)
-        #img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
-        #img = cv2.cvtColor(img, cv2.COLOR_LAB2RGB)
-        #img = cv2.medianBlur(img, 5)
-        #img = cv2.bilateralFilter(img,9,75,75)
-        #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # HSV image
-        #img = cv2.GaussianBlur(img, (5, 5), sigmaX=0.0)
-
-
-        # img = cv2.bilateralFilter(img, 9, 75, 75)
-        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # img = ~img
-
-
-        # # increase saturation by satadj amount
-        # satadj = 1.0
-        # imghsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        # (h, s, v) = cv2.split(imghsv.astype(np.float32))
-        # s = s * satadj
-        # s = np.clip(s, 0, 255)
-        # imghsv = cv2.merge((h, s, v))
-        # imghsv = imghsv.astype(dtype=np.uint8)
-        # imgsat = cv2.cvtColor(imghsv, cv2.COLOR_HSV2RGB)
-        # img = imgsat
 
         return img
 
@@ -629,6 +590,9 @@ class PiCameraPhotos():
         :return: A LAB image as a 3x3x3 numpy array for all 9 labels of a cube's face.
         """
         img = self.get_processed_image()
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        img = ~img
+
         roi = self.get_camera_roi(xoff, yoff, dim, pad)
         color_patches = np.zeros(shape=(3, 3, 3), dtype=np.uint8)
 
@@ -644,6 +608,10 @@ class PiCameraPhotos():
                 color_patches[row, col, :] = [int(x) for x in pixel]
 
         return color_patches
+
+    def destructor(self):
+        self.cam.release()
+        cv2.destroyAllWindows()
 
 class RubiksSolver():
     def __init__(self, channel):
@@ -909,13 +877,13 @@ class RubiksSolver():
                     yoff = self.config['camera']['Y Offset (px)']
                     dim = self.config['camera']['Size (px)']
                     pad = self.config['camera']['Pad (px)']
+
+                    # enable this if you want to have the cube's pics saved
+                    camera.cv_images.append( camera.get_overlayed_processed_image(xoff,yoff,dim,pad) )
+
                     lab_face = camera.get_camera_color_patches(xoff, yoff, dim, pad)
                     numeric_faces.append(lab_face)
 
-                    # enable this if you want to have the cube's pics saved
-                    img = camera.get_overlayed_processed_image(xoff,yoff,dim,pad)
-                    img = Image.fromarray(img)
-                    img.save("./images/{}.png".format(pic_counter))
                     pic_counter += 1
                 else:
                     success = self.__execute_command(step)
