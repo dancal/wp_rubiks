@@ -97,7 +97,6 @@ class Solver(Page):
                cube_name = 'U'
 
             if scanimg.any() and self.scanImageFrame[cube_name]['text'] != 'O':
-                #scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
                 scanimg = Image.fromarray(scanimg).resize((81,70))
                 scanout = ImageTk.PhotoImage(scanimg)
                 self.scanImageFrame[cube_name].configure(image=scanout)
@@ -173,22 +172,22 @@ class Solver(Page):
         self.cube_labelframe = tk.LabelFrame(self, text='cube screen')
         self.cube_labelframe.pack(side='top', fill=tk.BOTH, ipadx=0, ipady=0, padx=0, pady=0, expand=True)
 
-        self.scanImageFrame["U"]	= tk.Label(self.cube_labelframe, text="Up")
+        self.scanImageFrame["U"]	= tk.Label(self.cube_labelframe, text="Up", compound=tk.CENTER, fg="white", font=12)
         self.scanImageFrame["U"].grid(row=0, column=1, padx=1, pady=1)
 
-        self.scanImageFrame["L"]	= tk.Label(self.cube_labelframe, text="Left")
+        self.scanImageFrame["L"]	= tk.Label(self.cube_labelframe, text="Left", compound=tk.CENTER, fg="white", font=12)
         self.scanImageFrame["L"].grid(row=1, column=0, padx=1, pady=1)
 
-        self.scanImageFrame["F"]	= tk.Label(self.cube_labelframe, text="Font")
+        self.scanImageFrame["F"]	= tk.Label(self.cube_labelframe, text="Font", compound=tk.CENTER, fg="white", font=12)
         self.scanImageFrame["F"].grid(row=1, column=1, padx=1, pady=1)
 
-        self.scanImageFrame["R"]	= tk.Label(self.cube_labelframe, text="Right")
+        self.scanImageFrame["R"]	= tk.Label(self.cube_labelframe, text="Right", compound=tk.CENTER, fg="white", font=12)
         self.scanImageFrame["R"].grid(row=1, column=2, padx=1, pady=1)
 
-        self.scanImageFrame["B"]	= tk.Label(self.cube_labelframe, text="Back")
+        self.scanImageFrame["B"]	= tk.Label(self.cube_labelframe, text="Back", compound=tk.CENTER, fg="white", font=12)
         self.scanImageFrame["B"].grid(row=1, column=3, padx=1, pady=1)
 
-        self.scanImageFrame["D"]	= tk.Label(self.cube_labelframe, text="Down")
+        self.scanImageFrame["D"]	= tk.Label(self.cube_labelframe, text="Down", compound=tk.CENTER, fg="white", font=12)
         self.scanImageFrame["D"].grid(row=2, column=1, padx=1, pady=1)
 
         self.scanCubeReset()
@@ -678,6 +677,8 @@ class RubiksSolver():
             pos = 'low'
         elif mode == 'release':
             pos = 'high'
+        elif mode == 'random':
+            pos = 'low'
         else:
             return None
 
@@ -715,6 +716,14 @@ class RubiksSolver():
         :return: A list of 4 elements with instances of the arms.Arm class.
         """
         return self.__instantiate_arms(config, mode='fix')
+
+    def __instantiate_arms_in_random_mode(self, config):
+        """
+        Same thing as calling __instantiate_arms with mode set to 'fix'.
+        :param config: The configuration dictionary as it comes from the GUI app.
+        :return: A list of 4 elements with instances of the arms.Arm class.
+        """
+        return self.__instantiate_arms(config, mode='random')
 
     def __generate_handwritten_solution_from_cube_state(self, cube_centers, rubiks_labels):
         """
@@ -1061,6 +1070,9 @@ class RubiksSolver():
             elif action == 'release':
                 generator.release()
                 generator.reposition_arms(delay=1.0)
+            elif action == 'random':
+                generator.reposition_arms(delay=1.0)
+                generator.random()
 
             sequence = generator.arms_solution
             for step in sequence:
@@ -1145,7 +1157,7 @@ if __name__ == '__main__':
                             rubiks.stop(hard=True) # change state here
                             rubiks.stop(hard=False) # change state here
                         elif 'random' == msg:
-                            rubiks.stop(hard=True) # change state here
+                            rubiks.command(config=config, type='system', action='random')
                         elif 'fix' == msg:
                             rubiks.command(config=config, type='system', action='fix') # reflexive state here
                         elif 'release' == msg:

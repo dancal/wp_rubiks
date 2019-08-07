@@ -284,6 +284,19 @@ class ArmSolutionGenerator:
                 self.left.rotate(State.ANTICLOCKWISE)
             ]
 
+    def random(self):
+        self.arms_solution += [
+                self.up.rotate(State.ANTICLOCKWISE, False, False),
+                self.right.rotate(State.ANTICLOCKWISE, False, False),
+                self.down.rotate(State.ANTICLOCKWISE, False, False),
+                self.left.rotate(State.ANTICLOCKWISE),
+
+                self.up.move(State.FORWARD, False, False),
+                self.right.move(State.FORWARD, False, False),
+                self.down.move(State.FORWARD, False, False),
+                self.left.move(State.FORWARD)
+            ]
+
     def reposition_arms(self, delay):
         self.arms_solution += [
             self.up.reposition_linear(),
