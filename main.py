@@ -69,8 +69,8 @@ class Solver(Page):
             v_height 		= int(480 / scale)
             ok, frame 		= camera.cam.read()
             if ok:
-                frame 			= cv2.flip(frame, 1)
-                camera.cv_image	= cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA) 
+                #frame 			= cv2.flip(frame, 1)
+                camera.cv_image	= cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) 
                 img				= Image.fromarray(camera.cv_image).resize((v_width,v_height))
                 imgtk 			= ImageTk.PhotoImage(image=img)
                 self.display1.imgtk = imgtk #Shows frame for display 1
@@ -96,15 +96,13 @@ class Solver(Page):
             elif idx == 5:
                cube_name = 'U'
 
-            if scanimg.any():
-                #scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGBA) 
-                scanimg = Image.fromarray(scanimg).resize((80,70))
+            if scanimg.any() and self.scanImageFrame[cube_name]['text'] != 'O':
+                #scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
+                scanimg = Image.fromarray(scanimg).resize((81,70))
                 scanout = ImageTk.PhotoImage(scanimg)
                 self.scanImageFrame[cube_name].configure(image=scanout)
                 self.scanImageFrame[cube_name].image = scanout
-            else:
-                self.scanImageFrame[cube_name].configure(image=None)
-                self.scanImageFrame[cube_name].image = None
+                self.scanImageFrame[cube_name]['text'] = 'O'
 
         self.after(1000, self.show_scan_cube_image)
 
@@ -165,14 +163,15 @@ class Solver(Page):
         self.buttons['Solve Cube'].config(state='disabled')
 
         self.video_labelframe = tk.LabelFrame(self, text='video')
-        self.video_labelframe.pack(side='left', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=False)
+        self.video_labelframe.pack(side='left', fill=tk.BOTH, ipadx=0, ipady=0, padx=0, pady=0, expand=False)
 
         self.display1 = tk.Label(self.video_labelframe, text='video')
         self.display1.grid(row=0, column=0, padx=0, pady=0)  #Display 1
 
+
         ##############
         self.cube_labelframe = tk.LabelFrame(self, text='cube screen')
-        self.cube_labelframe.pack(side='top', fill=tk.BOTH, ipadx=2, ipady=2, padx=2, pady=1, expand=True)
+        self.cube_labelframe.pack(side='top', fill=tk.BOTH, ipadx=0, ipady=0, padx=0, pady=0, expand=True)
 
         self.scanImageFrame["U"]	= tk.Label(self.cube_labelframe, text="Up")
         self.scanImageFrame["U"].grid(row=0, column=1, padx=1, pady=1)
@@ -192,11 +191,28 @@ class Solver(Page):
         self.scanImageFrame["D"]	= tk.Label(self.cube_labelframe, text="Down")
         self.scanImageFrame["D"].grid(row=2, column=1, padx=1, pady=1)
 
+        self.scanCubeReset()
         self.show_frame()
         self.show_scan_cube_image()
         self.after(50, self.refresh_page)
 
+    def scanCubeReset(self):
+
+        scanimg = cv2.imread('./images/cube.jpg', cv2.IMREAD_COLOR) 
+        scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
+        scanimg = Image.fromarray(scanimg).resize((81,70))
+        scanout = ImageTk.PhotoImage(scanimg)
+
+        camera.cv_images = []
+        for cubename in self.cubeScanList:
+            self.scanImageFrame[cubename].configure(image=scanout)
+            self.scanImageFrame[cubename].image = scanout
+            self.scanImageFrame[cubename]['text'] = cubename
+
     def button_action(self, label):
+        if label == 'Stop' or label == 'fix' or label == 'release' or label == 'random':
+            self.scanCubeReset()
+
         self.pub.publish(self.channel, label)
 
     def refresh_page(self):
@@ -518,7 +534,7 @@ class PiCameraPhotos():
 
         img 		= cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         img 		= cv2.bilateralFilter(img, 9, 75, 75)
-        img 		= cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
+        img 		= cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         self.isbusy	= False
 
