@@ -1,4 +1,5 @@
 import logging
+import random
 from aenum import Enum, auto
 
 logger = logging.getLogger(__name__)
@@ -284,7 +285,7 @@ class ArmSolutionGenerator:
                 self.left.rotate(State.ANTICLOCKWISE)
             ]
 
-    def random(self):
+    def scramble(self, random_list):
         self.arms_solution += [
                 self.up.rotate(State.ANTICLOCKWISE, False, False),
                 self.right.rotate(State.ANTICLOCKWISE, False, False),
@@ -296,6 +297,8 @@ class ArmSolutionGenerator:
                 self.down.move(State.FORWARD, False, False),
                 self.left.move(State.FORWARD)
             ]
+
+        self.solution(random_list)
 
     def reposition_arms(self, delay):
         self.arms_solution += [
@@ -426,54 +429,6 @@ class ArmSolutionGenerator:
         elif turns == State.DOUBLE_TURN:
             self.rotate_left(State.TURN, way)
             self.rotate_left(State.TURN, way)
-
-    def rotate_down_old(self, turns, way):
-        if turns == State.TURN:
-            if way == State.CLOCKWISE:
-                self.arms_solution += [
-                        self.right.move(State.BACK, False, False),
-                        self.left.move(State.BACK),
-
-                        self.down.move(State.BACK),
-                        self.right.move(State.FORWARD, False, False),
-                        self.left.move(State.FORWARD),
-
-                        self.down.rotate(way, turns),
-                        self.right.move(State.BACK, False, False),
-                        self.left.move(State.BACK),
-                        self.down.move(State.FORWARD),
-
-                        self.right.move(State.FORWARD, False, False),
-                        self.left.move(State.FORWARD),
-
-                        self.down.move(State.BACK),
-                        self.down.rotate(self.__inverse_way(way)),
-                        self.down.move(State.FORWARD)
-                    ]
-            elif way == State.ANTICLOCKWISE:
-                self.arms_solution += [
-                        self.down.move(State.BACK),
-                        self.down.rotate(self.__inverse_way(way)),
-                        self.down.move(State.FORWARD),
-
-                        self.right.move(State.BACK, False, False),
-                        self.left.move(State.BACK),
-
-                        self.down.move(State.BACK),
-                        self.right.move(State.FORWARD, False, False),
-                        self.left.move(State.FORWARD),
-
-                        self.down.rotate(way),
-                        self.right.move(State.BACK, False, False),
-                        self.left.move(State.BACK),
-                        self.down.move(State.FORWARD),
-
-                        self.right.move(State.FORWARD, False, False),
-                        self.left.move(State.FORWARD)
-                    ]
-        elif turns == State.DOUBLE_TURN:
-            self.rotate_down(State.TURN, way)
-            self.rotate_down(State.TURN, way)
 
     def rotate_cube_towards_right(self):
         self.arms_solution += [

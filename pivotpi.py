@@ -34,15 +34,17 @@ class PivotPi(object):
     frequency = 60;
 
     def __init__(self, actual_frequency = 110):
-        #try:
+        try:
             self.servo_controller 	= maestro.Controller()
             self.frequency 			= actual_frequency;
-            
+            for i in range(7):
+                self.servo_controller.setAccel( i, actual_frequency )
+                    
             # Set frequency to 60hz, good for servos.
-        #except:
+        except:
             # pass
-        #    raise IOError("PivotPi not connected")
-        #return
+            raise IOError("PivotPi not connected")
+        return
     
     def pwm(self, channel, on, off):
         print("pwd")
@@ -57,8 +59,7 @@ class PivotPi(object):
         # self.servo_controller.setTarget(channel, int(pwm_to_send))
         try:
             if angle >= 0 and channel >= 0 and channel <= 7:
-                print("angle = ", int(angle))
-                self.servo_controller.set_speed( channel, self.frequency )
+                #print("angle = ", int(angle))
                 self.servo_controller.setTarget( channel, int(angle) )
                 return 1
 
@@ -66,46 +67,3 @@ class PivotPi(object):
             raise IOError("PivotPi not connected")
         return -1
 
-        """
-        if angle >= 0 and angle <= 180 and channel >= 0 and channel <= 7:
-            pwm_to_send = 4095 - translate(angle, 0, 180, self.servo_min, self.servo_max)
-            try:
-                self.servo_controller.setTarget(channel, 0, int(pwm_to_send))
-                return 1
-            except:
-                raise IOError("PivotPi not connected")
-        return -1
-        """
-"""
-    def angle_microseconds(self, channel, time):
-        if channel >= 0 and channel <= 7:
-            try:
-                if(time <= 0):
-                    self.servo_controller.set_pwm(channel, 4096, 4095)
-                else:
-                    pwm_to_send = 4095 - ((4096.0 / (1000000.0 / self.frequency)) * time)
-                    if(pwm_to_send < 0):
-                        pwm_to_send = 0
-                    if(pwm_to_send > 4095):
-                        pwm_to_send = 4095
-                    self.servo_controller.set_pwm(channel, 0, int(pwm_to_send))
-                return 1
-            except:
-                raise IOError("PivotPi not connected")
-        return -1
-    
-    def led(self, channel, percent):
-        if channel >= 0 and channel <= 7:
-            try:
-                if(percent >= 100):
-                    self.servo_controller.set_pwm(channel + 8, 4096, 4095)
-                else:
-                    if(percent < 0):
-                        percent = 0
-                    pwm_to_send = percent * 40.95
-                    self.servo_controller.set_pwm(channel + 8, 0, int(pwm_to_send))
-                return 1
-            except:
-                raise IOError("PivotPi not connected")
-        return -1
-"""
