@@ -148,7 +148,7 @@ class Solver(Page):
         self.progress_bars = {}
         self.bar_names = new_buttons
         for idx, bar_name in enumerate(self.bar_names):
-            self.progress_bars[bar_name] = ttk.Progressbar(self.solver_labelframe, orient='horizontal', length=100, mode='determinate')
+            self.progress_bars[bar_name] = ttk.Progressbar(self.solver_labelframe, orient='horizontal', length=120, mode='determinate')
             self.progress_bars[bar_name].grid(row=idx, column=1, padx=20, pady=1, sticky='nwe')
 
         self.progress_labels = {}
@@ -746,7 +746,6 @@ class RubiksSolver():
         cubestate = ''.join(cubestate)
 
         print('cubestate = ', cubestate)
-
         # generate the solution for the given cube's state
         solved = kociemba.solve(cubestate)
         solved = solved.split(' ')
@@ -1093,7 +1092,8 @@ class RubiksSolver():
 if __name__ == '__main__':
     hldr = logging.StreamHandler(sys.stdout)
     fmt = logging.Formatter('%(asctime)s %(levelname)2s %(name)s | %(message)s')
-    hldr.setLevel(logging.DEBUG)
+    #hldr.setLevel(logging.DEBUG)
+    hldr.setLevel(logging.INFO)
     hldr.setFormatter(fmt)
 
     logger = logging.getLogger(__name__)
