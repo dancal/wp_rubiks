@@ -807,7 +807,7 @@ class RubiksSolver():
         # and publish what's necessary for the GUI
         self.pub.publish(self.channel, {
             'read_button_locked': False,
-            'solve_button_locked': True,
+            'solve_button_locked': False,
             'scramble_button_locked': False,
             'read_status': 0,
             'solve_status': 0,
@@ -1012,6 +1012,15 @@ class RubiksSolver():
         if self.cubesolution == []:
             self.stop(hard=False)
 
+        self.pub.publish(self.channel, {
+            'read_button_locked': False,
+            'solve_button_locked': False,
+            'scramble_button_locked': False,
+            'read_status': 0,
+            'solve_status': 0,
+            'scramble_status' : 0
+        })
+
     def solvecube(self, event):
         """
         Spins up the thread for solvecube_thread method.
@@ -1123,7 +1132,7 @@ class RubiksSolver():
         generator.fix()
 
         # stop this thread if there's no solution
-        self.cubesolution	= self.scramble_str(1) 
+        self.cubesolution	= self.scramble_str(10) 
         if not self.cubesolution:
             self.thread_stopper.set()
             return
@@ -1245,8 +1254,8 @@ if __name__ == '__main__':
         # FSM's transitions
         machine.add_transition(trigger='read', source='rest', dest='reading', after='readcube')
         machine.on_enter_reading('unblock_solve')
-        machine.add_transition(trigger='solve', source='reading', dest='solving', conditions='is_finished', after='solvecube')
         machine.add_transition(trigger='scramble', source='*', dest='rest', after='scramblecube')
+        machine.add_transition(trigger='solve', source='reading', dest='solving', conditions='is_finished', after='solvecube')
         machine.add_transition(trigger='success', source='solving', dest='rest', conditions='is_finished', after='block_solve')
         machine.add_transition(trigger='stop', source='*', dest='rest', after='block_solve')
         machine.add_transition(trigger='command', source='rest', dest='=', after='process_command')
