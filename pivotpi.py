@@ -39,6 +39,7 @@ class PivotPi(object):
             self.frequency 			= actual_frequency;
             for i in range(7):
                 self.servo_controller.setAccel( i, actual_frequency )
+                self.servo_controller.setSpeed( i, 250 )
                     
             # Set frequency to 60hz, good for servos.
         except:
