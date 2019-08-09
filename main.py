@@ -91,7 +91,7 @@ class Solver(Page):
     def show_frame(self):
         isbusy	= camera.IsBusy()
         if isbusy:
-            self.after(100, self.show_frame)
+            self.after(10, self.show_frame)
         else:
             scale       	= 2.5
             v_width    		= int(640 / scale)
@@ -106,7 +106,7 @@ class Solver(Page):
                 self.display1.configure(image=imgtk)
                 self.after(30, self.show_frame)
             else:
-                self.after(100, self.show_frame)
+                self.after(10, self.show_frame)
         
     def show_scan_cube_image(self):
 
@@ -594,12 +594,12 @@ class PiCameraPhotos():
         y			= 10
         img			= self.cv_image;
         h 			= img.shape[0] - 50
-        w 			= img.shape[1] - 210
+        w 			= img.shape[1] - 50
         img 		= img[y:y+h, x:x+w]
 
-        img 		= cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #img 		= cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         #img 		= cv2.bilateralFilter(img, 9, 75, 75)
-        img 		= cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        #img 		= cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         self.isbusy	= False
 
@@ -634,6 +634,7 @@ class PiCameraPhotos():
         """
 
         # convert the captured image to a numpy array
+        sleep(1)
         img = self.capture()
         img = np.asarray(img)
 
@@ -695,7 +696,7 @@ class PiCameraPhotos():
 
         """
         #
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         img = cv2.bilateralFilter(img, 9, 75, 75)
         img = ~img
 
@@ -783,7 +784,7 @@ class RubiksSolver():
                          linear_cfg['low'], linear_cfg['high'],
                          rotational_cfg['low'], rotational_cfg['high'],
                          linear_cfg[pos], rotational_cfg['low'],
-                         rotation_speed=0.0002, command_delay=0.0001)
+                         rotation_speed=0.0001, command_delay=0.00005)
             )
 
         return robot_arms
@@ -992,7 +993,6 @@ class RubiksSolver():
 
                     # enable this if you want to have the cube's pics saved
                     camera.cv_images.append( camera.get_overlayed_processed_image(xoff,yoff,dim,pad) )
-
                     lab_face = camera.get_camera_color_patches(xoff, yoff, dim, pad, pic_counter)
                     numeric_faces.append(lab_face)
 

@@ -31,15 +31,14 @@ class PivotPi(object):
     # Configure min and max servo pulse lengths
     servo_min = 990   # Min pulse length out of 4096
     servo_max = 8000  # Max pulse length out of 4096
-    frequency = 60;
 
     def __init__(self, actual_frequency = 110):
         try:
             self.servo_controller 	= maestro.Controller()
             self.frequency 			= actual_frequency;
-            for i in range(7):
-                self.servo_controller.setAccel( i, actual_frequency )
-                self.servo_controller.setSpeed( i, 250 )
+            #for i in range(7):
+                #self.servo_controller.setAccel( i, actual_frequency )
+                #self.servo_controller.setSpeed( i, 250 )
                     
             # Set frequency to 60hz, good for servos.
         except:
