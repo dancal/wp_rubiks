@@ -23,6 +23,7 @@ import json
 import transitions
 import logging
 import sys
+import webcolors
 
 class QueuePubSub():
     '''
@@ -60,10 +61,37 @@ class Page(tk.Frame):
 
 class Solver(Page):
 
+    def _from_rgb(self,rgb):
+        return "#%02x%02x%02x" % rgb
+
+    def get_cube_row_col(self,sname):
+
+        row = 0
+        col = 0
+        if sname == 'F':
+            row = 0
+            col = 0
+        elif sname == 'R':
+            row = 0
+            col = 1
+        elif sname == 'B':
+            row = 0
+            col = 2
+        elif sname == 'U':
+            row = 1
+            col = 0
+        elif sname == 'D':
+            row = 1
+            col = 1
+        elif sname == 'L':
+            row = 1
+            col = 2
+        return [row, col]
+
     def show_frame(self):
         isbusy	= camera.IsBusy()
         if isbusy:
-            self.after(50, self.show_frame)
+            self.after(500, self.show_frame)
         else:
             scale       	= 2.5
             v_width    		= int(640 / scale)
@@ -76,12 +104,12 @@ class Solver(Page):
                 imgtk 			= ImageTk.PhotoImage(image=img)
                 self.display1.imgtk = imgtk #Shows frame for display 1
                 self.display1.configure(image=imgtk)
-                self.after(30, self.show_frame)
+                self.after(100, self.show_frame)
             else:
-                self.after(50, self.show_frame)
+                self.after(500, self.show_frame)
         
     def show_scan_cube_image(self):
-        """
+
         for idx, scanimg in enumerate(camera.cv_images):
 
             cubename = ""
@@ -98,61 +126,43 @@ class Solver(Page):
             elif idx == 5:
                cube_name = 'U'
 
-            if scanimg.any() and self.scanImageFrame[cube_name]['text'] != 'O':
+            if scanimg.any() and self.scanImageFrame[cube_name]['wraplength'] != 10:
                 scanimg = Image.fromarray(scanimg).resize((81,70))
                 scanout = ImageTk.PhotoImage(scanimg)
                 self.scanImageFrame[cube_name].configure(image=scanout)
                 self.scanImageFrame[cube_name].image = scanout
-                self.scanImageFrame[cube_name]['text'] = 'O'
+                self.scanImageFrame[cube_name]['wraplength'] = 10
+                self.scanImageFrame[cube_name]['text'] = cube_name
 
-        self.after(1000, self.show_scan_cube_image)
-        """
+        self.after(100, self.show_scan_cube_image)
+
+    def show_scan_cube_label(self):
         for idx, sname in enumerate(self.cubeScanList):
-            row_col = self.get_cube_row_col(sname)
-            row		= row_col[0]
-            col		= row_col[1]
             for crow in range(3):
                 for ccol in range(3):
                     if camera.cubeColors[idx][crow][ccol]:
-                        print(camera.cubeColors[idx][crow][ccol])
-                        self.cubematrix[idx][crow][ccol].config(bg=_from_rgb(camera.cubeColors[idx][crow][ccol]))
+                        rgb = camera.cubeColors[idx][crow][ccol]
+                        r   = rgb[0]
+                        g   = rgb[1]
+                        b   = rgb[2]
 
-    def _from_rgb(rgb):
-        return "#%02x%02x%02x" % rgb
+                        colorname = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
+                        if crow == 1 and ccol == 1:
+                            self.cubematrix[idx][crow][ccol].config(text=sname)
+                        self.cubematrix[idx][crow][ccol].config(bg=self._from_rgb(colorname))
 
-    def get_cube_row_col(self,sname):
-
-        row = 0
-        col = 0
-        if sname == 'U':
-            row = 0
-            col = 1
-        elif sname == 'L':
-               row = 1
-               col = 0
-        elif sname == 'F':
-               row = 1
-               col = 1
-        elif sname == 'R':
-               row = 1
-               col = 2
-        elif sname == 'B':
-               row = 1
-               col = 3
-        elif sname == 'D':
-               row = 2
-               col = 1
-        return [row, col]
+        self.after(100, self.show_scan_cube_label)
 
     def __init__(self, *args, **kwargs):
         super(Solver, self).__init__(*args, **kwargs)
         
-        self.cubeScanList		= ['F', 'R', 'B', 'L', 'D', 'U'] 
-        self.scanImageFrame		= {}
-
         self.channel 			= 'solver'
         self.pub 				= QueuePubSub(queues)
         self.sub 				= QueuePubSub(queues).subscribe('update')
+
+        self.cubeScanList		= ['F', 'R', 'B', 'L', 'D', 'U'] 
+        self.scanImageFrame		= {}
+        self.cubematrix			= [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
 
         # Grip/Stop Functions
         self.grip_labelframe = tk.LabelFrame(self, text='Grip/Stop Functions')
@@ -211,59 +221,52 @@ class Solver(Page):
         self.cube_labelframe = tk.LabelFrame(self, text='read cube status')
         self.cube_labelframe.pack(side='top', fill=tk.BOTH, ipadx=0, ipady=0, padx=0, pady=0, expand=True)
 
-        """
-        self.scanImageFrame["U"]	= tk.Label(self.cube_labelframe, text="Up", compound=tk.CENTER, fg="white", font=12)
-        self.scanImageFrame["U"].grid(row=0, column=1, padx=1, pady=1)
-
-        self.scanImageFrame["L"]	= tk.Label(self.cube_labelframe, text="Left", compound=tk.CENTER, fg="white", font=12)
-        self.scanImageFrame["L"].grid(row=1, column=0, padx=1, pady=1)
-
-        self.scanImageFrame["F"]	= tk.Label(self.cube_labelframe, text="Font", compound=tk.CENTER, fg="white", font=12)
-        self.scanImageFrame["F"].grid(row=1, column=1, padx=1, pady=1)
-
-        self.scanImageFrame["R"]	= tk.Label(self.cube_labelframe, text="Right", compound=tk.CENTER, fg="white", font=12)
-        self.scanImageFrame["R"].grid(row=1, column=2, padx=1, pady=1)
-
-        self.scanImageFrame["B"]	= tk.Label(self.cube_labelframe, text="Back", compound=tk.CENTER, fg="white", font=12)
-        self.scanImageFrame["B"].grid(row=1, column=3, padx=1, pady=1)
-
-        self.scanImageFrame["D"]	= tk.Label(self.cube_labelframe, text="Down", compound=tk.CENTER, fg="white", font=12)
-        self.scanImageFrame["D"].grid(row=2, column=1, padx=1, pady=1)
-        """
-
-        self.cubematrix	= [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
+        self.is_use_scan_cube_label	= True
         for idx, sname in enumerate(self.cubeScanList):
             row_col = self.get_cube_row_col(sname)
             row		= row_col[0]
             col		= row_col[1]
-            self.scanImageFrame[sname]	= tk.Label(self.cube_labelframe, text="Down", compound=tk.CENTER, fg="white")
+            self.scanImageFrame[sname]	= tk.Label(self.cube_labelframe, text="D", compound=tk.CENTER, bg="black")
             self.scanImageFrame[sname].grid(row=row, column=col, padx=1, pady=1)
-            for crow in range(3):
-                for ccol in range(3):
-                    self.cubematrix[idx][crow][ccol]    = tk.Label(self.scanImageFrame[sname], text="D", compound=tk.CENTER, bg="red")
-                    self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, padx=1, pady=1)
-        
-        self.scanCubeReset()
+
+            if self.is_use_scan_cube_label:
+                for crow in range(3):
+                    for ccol in range(3):
+                        self.cubematrix[idx][crow][ccol]    = tk.Label(self.scanImageFrame[sname], text=sname, width=3, compound=tk.CENTER, bd=2, relief="flat", bg="lightgray")
+                        self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=3, padx=2, pady=2)
+
+        if self.is_use_scan_cube_label:
+            self.show_scan_cube_label()
+        else:
+            self.show_scan_cube_image()
+
         self.show_frame()
-        self.show_scan_cube_image()
+        self.scanCubeReset()
         self.after(50, self.refresh_page)
 
     def scanCubeReset(self):
 
-        cube_image_file	= './images/cube.jpg'
-        if os.path.isfile(cube_image_file):
-            scanimg = cv2.imread(cube_image_file, cv2.IMREAD_COLOR) 
-            scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
-            scanimg = Image.fromarray(scanimg).resize((81,70))
-            scanout = ImageTk.PhotoImage(scanimg)
+        camera.cv_images 	= []
+        scanout				= {}
+        if not self.is_use_scan_cube_label:
+            cube_image_file	= './images/cube.jpg'
+            if os.path.isfile(cube_image_file):
+                scanimg = cv2.imread(cube_image_file, cv2.IMREAD_COLOR) 
+                scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
+                scanimg = Image.fromarray(scanimg).resize((81,70))
+                scanout = ImageTk.PhotoImage(scanimg)
 
-            camera.cv_images = []
-            """
-            for cubename in self.cubeScanList:
+
+        for idx, cubename in enumerate(self.cubeScanList):
+            if scanout:
                 self.scanImageFrame[cubename].configure(image=scanout)
                 self.scanImageFrame[cubename].image = scanout
                 self.scanImageFrame[cubename]['text'] = cubename
-            """
+                self.scanImageFrame[cubename]['wraplength'] = 20
+
+            for crow in range(3):
+                for ccol in range(3):
+                    camera.cubeColors[idx][crow][ccol] = webcolors.name_to_rgb("lightgray")
 
     def button_action(self, label):
         if label == 'Stop' or label == 'fix' or label == 'release' or label == 'scramble':
@@ -678,10 +681,6 @@ class PiCameraPhotos():
         :return: A LAB image as a 3x3x3 numpy array for all 9 labels of a cube's face.
         """
         img = self.get_processed_image()
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        img = cv2.bilateralFilter(img, 9, 75, 75)
-        img = ~img
-
         roi = self.get_camera_roi(xoff, yoff, dim, pad)
         color_patches = np.zeros(shape=(3, 3, 3), dtype=np.uint8)
 
@@ -693,9 +692,34 @@ class PiCameraPhotos():
                 dim = cropper['dim']
                 temp = img[y:y+dim, x:x+dim]
                 temp = temp.reshape(temp.shape[0] * temp.shape[1], temp.shape[2])
+                pixel 	= temp.mean(axis=0)
+                r		= pixel[0]
+                g		= pixel[1]
+                b		= pixel[2]
+                rColor	= webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
+
+                color_patches[row, col, :] = rColor
+                self.cubeColors[pic_counter][row][col]	= rColor
+                #self.cubeColors[pic_counter][row][col]	= [int(x) for x in pixel]
+                #colorname = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
+
+        """
+        #
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        img = cv2.bilateralFilter(img, 9, 75, 75)
+        img = ~img
+
+        for row in range(3):
+            for col in range(3):
+                cropper = roi[row][col]
+                x = cropper['x']
+                y = cropper['y']
+                dim = cropper['dim']
+                temp = img[y:y+dim, x:x+dim]
+                temp = temp.reshape(temp.shape[0] * temp.shape[1], temp.shape[2])
                 pixel = temp.mean(axis=0)
                 color_patches[row, col, :] = [int(x) for x in pixel]
-                self.cubeColors[pic_counter][row][col]	= [int(x) for x in pixel]
+        """
 
         return color_patches
 

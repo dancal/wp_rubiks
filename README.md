@@ -27,6 +27,7 @@
  - serial
  - random
  - numpy
+ - webcolors
 
 # 작업 히스토리
  - 2019.08.?? : Rubiks LCD 장착.

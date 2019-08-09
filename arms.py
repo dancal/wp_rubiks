@@ -449,6 +449,7 @@ class ArmSolutionGenerator:
                 self.up.rotate(State.ANTICLOCKWISE),
                 self.up.move(State.FORWARD)
             ]
+
     def take_capture_order(self):
         self.arms_solution += [
                 self.left.move(State.BACK, False, False),
