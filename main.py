@@ -108,25 +108,8 @@ class Solver(Page):
             else:
                 self.after(10, self.show_frame)
         
-    def show_scan_cube_image(self):
+    def show_scan_cube_status(self):
 
-        for idx, cube_name in enumerate(self.cubeScanList):
-            scanimg		= {}
-            try:
-                scanimg	= camera.cv_images[idx]
-                if self.scanImageFrame[cube_name]['wraplength'] != 10:
-                    scanimg = Image.fromarray(scanimg).resize((108,97))
-                    scanout = ImageTk.PhotoImage(scanimg)
-                    self.scanImageFrame[cube_name].configure(image=scanout)
-                    self.scanImageFrame[cube_name].image = scanout
-                    self.scanImageFrame[cube_name]['wraplength'] = 10
-                    self.scanImageFrame[cube_name]['text'] = cube_name
-            except IndexError:
-                scanimg	= {}
-
-        self.after(100, self.show_scan_cube_image)
-
-    def show_scan_cube_label(self):
         for idx, sname in enumerate(self.cubeScanList):
             for crow in range(3):
                 for ccol in range(3):
@@ -140,8 +123,27 @@ class Solver(Page):
                         if crow == 1 and ccol == 1:
                             self.cubematrix[idx][crow][ccol].config(text=sname)
                         self.cubematrix[idx][crow][ccol].config(bg=self._from_rgb(colorname))
+                        if not self.is_use_scan_cube_label:
+                            self.cubematrix[idx][crow][ccol].grid_remove()
+                        else:
+                            self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=3, padx=2, pady=2)
 
-        self.after(100, self.show_scan_cube_label)
+            scanimg		= {}
+            try:
+                scanimg	= camera.cv_images[idx]
+                if self.scanImageFrame[sname]['wraplength'] != 10:
+                    scanimg = Image.fromarray(scanimg).resize((108,97))
+                    scanout = ImageTk.PhotoImage(scanimg)
+                    self.scanImageFrame[sname].configure(image=scanout)
+                    self.scanImageFrame[sname].image = scanout
+                    self.scanImageFrame[sname]['wraplength'] = 10
+                    self.scanImageFrame[sname]['text'] = sname
+
+            except IndexError:
+                scanimg	= {}
+
+
+        self.after(100, self.show_scan_cube_status)
 
     def __init__(self, *args, **kwargs):
         super(Solver, self).__init__(*args, **kwargs)
@@ -159,7 +161,7 @@ class Solver(Page):
         self.grip_labelframe.pack(side='left', fill=tk.Y, ipadx=2, ipady=2, padx=20, pady=20)
 
         # Side Grip/Stop Buttons
-        self.button_names = ['Fix', 'Release', 'Infinite', 'Stop']
+        self.button_names = ['Fix', 'Release', 'Infinite', 'Stop', 'Cube Status']
         max_button_width = max(map(lambda x: len(x), self.button_names))
         self.buttons = {}
         for button_name in self.button_names:
@@ -216,19 +218,16 @@ class Solver(Page):
             row_col = self.get_cube_row_col(sname)
             row		= row_col[0]
             col		= row_col[1]
-            self.scanImageFrame[sname]	= tk.Label(self.cube_labelframe, text="N", compound=tk.CENTER, bg="black")
+            self.scanImageFrame[sname]	= tk.Label(self.cube_labelframe, text=sname, compound=tk.CENTER, bg="lightgray")
             self.scanImageFrame[sname].grid(row=row, column=col, padx=3, pady=1)
 
             if self.is_use_scan_cube_label:
                 for crow in range(3):
                     for ccol in range(3):
                         self.cubematrix[idx][crow][ccol]    = tk.Label(self.scanImageFrame[sname], text=sname, width=3, compound=tk.CENTER, bd=2, relief="flat", bg="lightgray")
-                        self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=3, padx=2, pady=2)
+                        #self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=3, padx=2, pady=2)
 
-        if self.is_use_scan_cube_label:
-            self.show_scan_cube_label()
-        else:
-            self.show_scan_cube_image()
+        self.show_scan_cube_status()
 
         self.show_frame()
         self.scanCubeReset()
@@ -238,14 +237,12 @@ class Solver(Page):
 
         camera.cv_images 	= []
         scanout				= {}
-        if not self.is_use_scan_cube_label:
-            cube_image_file	= './images/cube.jpg'
-            if os.path.isfile(cube_image_file):
-                scanimg = cv2.imread(cube_image_file, cv2.IMREAD_COLOR) 
-                scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
-                scanimg = Image.fromarray(scanimg).resize((108,97))
-                scanout = ImageTk.PhotoImage(scanimg)
-
+        cube_image_file	= './images/cube.jpg'
+        if os.path.isfile(cube_image_file):
+            scanimg = cv2.imread(cube_image_file, cv2.IMREAD_COLOR) 
+            scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
+            scanimg = Image.fromarray(scanimg).resize((108,97))
+            scanout = ImageTk.PhotoImage(scanimg)
 
         for idx, cubename in enumerate(self.cubeScanList):
             if scanout:
@@ -259,9 +256,19 @@ class Solver(Page):
                     camera.cubeColors[idx][crow][ccol] = webcolors.name_to_rgb("lightgray")
 
     def button_action(self, label):
-        if label == 'Stop' or label == 'fix' or label == 'release' or label == 'scramble' or label == 'infinite':
+        if label == 'Stop' or label == 'fix' or label == 'release' or label == 'scramble':
             self.scanCubeReset()
-
+        elif label == 'Infinite':
+            self.scanCubeReset()
+            #
+        elif label == 'Cube Status':
+            if self.is_use_scan_cube_label:
+                self.is_use_scan_cube_label = False
+                self.buttons[label].config(bg="green")
+            else:
+                self.is_use_scan_cube_label = True
+                self.buttons[label].config(bg="lightgray")
+        
         self.pub.publish(self.channel, label)
 
     def refresh_page(self):
@@ -1350,8 +1357,6 @@ if __name__ == '__main__':
                             rubiks.stop(hard=True) # change state here
                             rubiks.stop(hard=False) # change state here
                         elif 'scramble cube' == msg:
-                            rubiks.scramble(config=config) # change state here
-                        elif 'infinite' == msg:
                             rubiks.scramble(config=config) # change state here
                         elif 'fix' == msg:
                             rubiks.command(config=config, type='system', action='fix') # reflexive state here
