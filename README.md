@@ -89,12 +89,13 @@
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-05-1.jpg)
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-04-1.jpg)
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-04-2.jpg)
- - 2019.08.09 : Rubiks 소프트웨어 릴리즈 및 버그 픽스 & 풀 테스트 ![play3](https://img.youtube.com/vi/BoThWM9IN90/0.jpg)]( https://youtu.be/BoThWM9IN90)
-- 2019.08.?? : Rubiks LCD 장착.
+ - 2019.08.09 : Rubiks 소프트웨어 릴리즈 및 버그 픽스 & 풀 테스트 
+![play3](https://img.youtube.com/vi/BoThWM9IN90/0.jpg)](https://youtu.be/BoThWM9IN90?t=0)
 
-- 기타
-![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-09_11-39-07.jpg)
+ - 2019.08.?? : Rubiks LCD 장착.
 
+ - 기타
+ ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-09_11-39-07.jpg)
 - 실패작들
  ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-09_11-40-25.jpg)
 
