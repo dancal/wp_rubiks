@@ -259,8 +259,8 @@ class Solver(Page):
         if label == 'Stop' or label == 'fix' or label == 'release' or label == 'scramble':
             self.scanCubeReset()
         elif label == 'Infinite':
-            self.scanCubeReset()
             #
+            self.scanCubeReset()
         elif label == 'Cube Status':
             if self.is_use_scan_cube_label:
                 self.is_use_scan_cube_label = False
@@ -731,11 +731,14 @@ class RubiksSolver():
         Initialize a model object for the FSM.
         :param channel: The channel to which commands have to be published.
         """
-        self.pub = QueuePubSub(queues)
-        self.channel = channel
-        self.thread_stopper = td.Event()
-        self.thread = None
-        self.cubesolution = None
+        self.pub 				= QueuePubSub(queues)
+        self.channel 			= channel
+        self.thread_stopper 	= td.Event()
+        self.thread 			= None
+        self.thread2_stopper 	= td.Event()
+        self.thread2 			= None
+        self.cubesolution 		= None
+        self.infiniteStatus		= False
 
     def __execute_command(self, command):
         """
@@ -1209,7 +1212,7 @@ class RubiksSolver():
         generator.fix()
 
         # stop this thread if there's no solution
-        self.cubesolution	= self.scramble_str(10) 
+        self.cubesolution	= self.scramble_str(1) 
         if not self.cubesolution:
             self.thread_stopper.set()
             return
@@ -1247,6 +1250,52 @@ class RubiksSolver():
             'read_status': 0,
             'solve_status': 0,
             'scramble_status' : 100
+        })
+
+    def infinitecube(self, event):
+        logger.debug('start thread for infinite the cube')
+        self.thread2_stopper.clear()
+        self.thread2 = td.Thread(target=self.infinitecube_thread2, args=(event,))
+        self.thread2.start()
+
+    def infinitecube_thread2(self, event):
+        self.pub.publish(self.channel, {
+            'read_button_locked': True,
+            'solve_button_locked': True,
+            'scramble_button_locked': True,
+            'read_status': 0,
+            'solve_status': 0,
+            'scramble_status' : 0
+        })
+
+        config = event.kwargs.get('config')
+        while self.infiniteStatus:
+
+            self.scramblecube(event)
+            self.thread.join()
+            if not self.infiniteStatus:
+               break
+
+            self.read(config=config)
+            self.thread.join()
+            if not self.infiniteStatus:
+               break
+
+            self.solve()
+            self.thread.join()
+            if not self.infiniteStatus:
+               break
+
+            print("complete")
+        
+        self.thread2_stopper.set()
+        self.pub.publish(self.channel, {
+            'read_button_locked': False,
+            'solve_button_locked': False,
+            'scramble_button_locked': False,
+            'read_status': 0,
+            'solve_status': 0,
+            'scramble_status' : 0
         })
 
     def process_command(self, event):
@@ -1332,11 +1381,12 @@ if __name__ == '__main__':
             send_event=True
         )
         # FSM's transitions
-        machine.add_transition(trigger='read', source='rest', dest='reading', after='readcube')
+        machine.add_transition(trigger='read', source='*', dest='reading', after='readcube')
         machine.on_enter_reading('unblock_solve')
-        machine.add_transition(trigger='scramble', source='*', dest='rest', after='scramblecube')
         machine.add_transition(trigger='solve', source='reading', dest='solving', conditions='is_finished', after='solvecube')
         machine.add_transition(trigger='success', source='solving', dest='rest', conditions='is_finished', after='block_solve')
+        machine.add_transition(trigger='scramble', source='*', dest='rest', after='scramblecube')
+        machine.add_transition(trigger='infinite', source='*', dest='rest', after='infinitecube')
         machine.add_transition(trigger='stop', source='*', dest='rest', after='block_solve')
         machine.add_transition(trigger='command', source='rest', dest='=', after='process_command')
 
@@ -1357,15 +1407,21 @@ if __name__ == '__main__':
                         elif 'solve cube' == msg:
                             rubiks.solve() # change state here
                         elif 'stop' == msg:
-                            rubiks.stop(hard=True) # change state here
-                            rubiks.command(config=config, type='system', action='stop') # reflexive state here
+                            rubiks.infiniteStatus = False
+                            rubiks.thread2_stopper.set()
                             rubiks.stop(hard=False) # change state here
+                            rubiks.command(config=config, type='system', action='stop') # reflexive state here
+                            rubiks.stop(hard=True) # change state here
                         elif 'scramble cube' == msg:
                             rubiks.scramble(config=config) # change state here
                         elif 'fix' == msg:
                             rubiks.command(config=config, type='system', action='fix') # reflexive state here
                         elif 'release' == msg:
-                            rubiks.command( config=config, type='system', action='release') # reflexive state here
+                            rubiks.command(config=config, type='system', action='release') # reflexive state here
+                        elif 'infinite' == msg:
+                            rubiks.infiniteStatus	= True
+                            rubiks.infinite(config=config)
+                            
                         logger.info('\'' + msg + '\' button pressed')
                     elif channel == 'arms_play':
                         servo, pos = message
