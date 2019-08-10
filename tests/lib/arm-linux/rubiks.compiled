@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Compiler Value="/usr/bin/fpc" Date="1487372929"/>
+  <Params Value=" -MObjFPC -Scghi -O1 -g -gl -l -vewnhibq -Fi/home/pi/works/wp_rubiks/lib/arm-linux -Fu/home/pi/.lazarus/onlinepackagemanager/packages/colorpalette/lib/arm-linux -Fu/usr/local/share/lazarus/lcl/units/arm-linux/gtk2 -Fu/usr/local/share/lazarus/lcl/units/arm-linux -Fu/usr/local/share/lazarus/components/lazutils/lib/arm-linux -Fu/usr/local/share/lazarus/packager/units/arm-linux -Fu/home/pi/works/wp_rubiks/ -FU/home/pi/works/wp_rubiks/lib/arm-linux/ -FE/home/pi/works/wp_rubiks/ -o/home/pi/works/wp_rubiks/rubiks -dLCL -dLCLgtk2 rubiks.lpr"/>
+</CONFIG>

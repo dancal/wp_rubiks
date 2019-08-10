@@ -1,0 +1,100 @@
+object Form1: TForm1
+  Left = 384
+  Height = 490
+  Top = 147
+  Width = 836
+  Align = alClient
+  Caption = 'WaSamD - Rubiks Cube Solver Robot'
+  ClientHeight = 490
+  ClientWidth = 836
+  DockSite = True
+  DoubleBuffered = True
+  OnCreate = FormCreate
+  ParentDoubleBuffered = False
+  UseDockManager = True
+  LCLVersion = '2.0.2.0'
+  Scaled = False
+  object OpenButton: TButton
+    Left = 664
+    Height = 94
+    Top = 5
+    Width = 163
+    Caption = 'Open'
+    Color = clMoneyGreen
+    OnClick = OpenButtonClick
+    TabOrder = 0
+  end
+  object RandomButton: TButton
+    Left = 664
+    Height = 94
+    Top = 210
+    Width = 163
+    Caption = 'Random mix'
+    Color = clCream
+    OnClick = OpenButtonClick
+    TabOrder = 1
+  end
+  object StopButton: TButton
+    Left = 664
+    Height = 94
+    Top = 313
+    Width = 163
+    Caption = 'Stop'
+    Color = clWindowFrame
+    OnClick = OpenButtonClick
+    TabOrder = 2
+  end
+  object StartButton: TButton
+    Left = 664
+    Height = 94
+    Top = 108
+    Width = 163
+    Caption = 'Start'
+    Color = clSkyBlue
+    OnClick = OpenButtonClick
+    TabOrder = 3
+  end
+  object StatusBar1: TStatusBar
+    Left = 0
+    Height = 17
+    Top = 473
+    Width = 836
+    Panels = <>
+  end
+  object BitBtn1: TBitBtn
+    Left = 664
+    Height = 73
+    Top = 415
+    Width = 160
+    Caption = 'Setup'
+    OnClick = BitBtn1Click
+    TabOrder = 5
+  end
+  object Camera: TImage
+    Left = 8
+    Height = 296
+    Top = 8
+    Width = 640
+  end
+  object Timer1: TTimer
+    OnTimer = Timer1Timer
+    left = 96
+    top = 65448
+  end
+  object Process1: TProcess
+    Active = False
+    Options = [poWaitOnExit]
+    Priority = ppNormal
+    StartupOptions = []
+    ShowWindow = swoNone
+    WindowColumns = 0
+    WindowHeight = 0
+    WindowLeft = 0
+    WindowRows = 0
+    WindowTop = 0
+    WindowWidth = 0
+    FillAttribute = 0
+    left = 144
+    top = 65448
+  end
+end
