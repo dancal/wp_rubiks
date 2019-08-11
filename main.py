@@ -1278,7 +1278,7 @@ class RubiksSolver():
             generator.fix()
 
         # stop this thread if there's no solution
-        self.cubesolution	= self.scramble_str(1) 
+        self.cubesolution	= self.scramble_str( random.randint(10,15) ) 
         if not self.cubesolution:
             self.thread_stopper.set()
             return
