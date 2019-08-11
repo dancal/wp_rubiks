@@ -126,7 +126,7 @@ class Solver(Page):
                         if not self.is_use_scan_cube_label:
                             self.cubematrix[idx][crow][ccol].grid_remove()
                         else:
-                            self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=3, padx=2, pady=2)
+                            self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=2, padx=2, pady=2)
 
             scanimg		= {}
             try:
@@ -219,13 +219,12 @@ class Solver(Page):
             row		= row_col[0]
             col		= row_col[1]
             self.scanImageFrame[sname]	= tk.Label(self.cube_labelframe, text=sname, compound=tk.CENTER, bg="lightgray")
-            self.scanImageFrame[sname].grid(row=row, column=col, padx=3, pady=1)
+            self.scanImageFrame[sname].grid(row=row, column=col, padx=1, pady=1)
 
             if self.is_use_scan_cube_label:
                 for crow in range(3):
                     for ccol in range(3):
-                        self.cubematrix[idx][crow][ccol]    = tk.Label(self.scanImageFrame[sname], text=sname, width=3, compound=tk.CENTER, bd=2, relief="flat", bg="lightgray")
-                        #self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=3, padx=2, pady=2)
+                        self.cubematrix[idx][crow][ccol]    = tk.Label(self.scanImageFrame[sname], text=sname, width=3, compound=tk.CENTER, bd=2, bg="black")
 
         self.show_scan_cube_status()
 
@@ -274,26 +273,41 @@ class Solver(Page):
     def refresh_page(self):
         try:
             # block or disable the solve button
-            read_state = 'normal'
-            solve_state = 'normal'
-            scramble_state = 'normal'
+            fix_state 		= 'normal'
+            release_state 	= 'normal'
+            infinite_state 	= 'normal'
+
+            read_state 		= 'normal'
+            solve_state 	= 'normal'
+            scramble_state 	= 'normal'
+
             update = self.sub.get(block=False)
+            if update['fix_button_locked'] is True:
+                fix_state = 'disabled'
+            if update['release_button_locked'] is True:
+                release_state = 'disabled'
             if update['read_button_locked'] is True:
                 read_state = 'disabled'
             if update['solve_button_locked'] is True:
                 solve_state = 'disabled'
             if update['scramble_button_locked'] is True:
                 scramble_state = 'disabled'
+            if update['infinite_button_locked'] is True:
+                infinite_state = 'disabled'
+
+            if self.buttons['Fix']['state'] != fix_state:
+                self.buttons['Fix'].config(state=fix_state)
+            if self.buttons['Release']['state'] != release_state:
+                self.buttons['Release'].config(state=release_state)
+            if self.buttons['Infinite']['state'] != infinite_state:
+                self.buttons['Infinite'].config(state=infinite_state)
 
             if self.buttons['Solve Cube']['state'] != solve_state:
                 self.buttons['Solve Cube'].config(state=solve_state)
-                logger.info('{} \'Solve Cube\' button'.format(solve_state))
             if self.buttons['Read Cube']['state'] != read_state:
                 self.buttons['Read Cube'].config(state=read_state)
-                logger.info('{} \'Read Cube\' button'.format(read_state))
             if self.buttons['Scramble Cube']['state'] != scramble_state:
                 self.buttons['Scramble Cube'].config(state=scramble_state)
-                logger.info('{} \'Scramble Cube\' button'.format(scramble_state))
             
             # update both progress bars
             read_progress_bar = update['read_status']
@@ -641,7 +655,7 @@ class PiCameraPhotos():
         """
 
         # convert the captured image to a numpy array
-        sleep(1)
+        sleep(0.3)
         img = self.capture()
         img = np.asarray(img)
 
@@ -739,6 +753,7 @@ class RubiksSolver():
         self.thread2 			= None
         self.cubesolution 		= None
         self.infiniteStatus		= False
+        self.isFixedCube		= False
 
     def __execute_command(self, command):
         """
@@ -842,6 +857,11 @@ class RubiksSolver():
 
         return solved
 
+    def __buttons_status(self, status):
+        if self.infiniteStatus:
+           return True
+        return status
+
     def unblock_solve(self, event):
         """
         Unblock the solve button in the GUI app.
@@ -850,13 +870,15 @@ class RubiksSolver():
         """
         logger.debug('unblock solve button')
         self.pub.publish(self.channel, {
-            'read_button_locked': False,
-            'solve_button_locked': False,
-            'scramble_button_locked': False,
+            'fix_button_locked': self.__buttons_status(False),
+            'release_button_locked': self.__buttons_status(False),
+            'infinite_button_locked': self.__buttons_status(False),
+            'read_button_locked': self.__buttons_status(False),
+            'solve_button_locked': self.__buttons_status(False),
+            'scramble_button_locked': self.__buttons_status(False),
             'read_status': 0,
             'solve_status': 0,
             'scramble_status': 0
-
         })
 
     def is_finished(self, event):
@@ -866,6 +888,8 @@ class RubiksSolver():
         :param event: Not necessary.
         :return: Whether the thread is still running or not.
         """
+        if self.infiniteStatus:
+            return
         return self.thread_stopper.is_set()
 
     def block_solve(self, event):
@@ -874,6 +898,9 @@ class RubiksSolver():
         :param event: Not necessary here.
         :return: Nothing.
         """
+        if self.infiniteStatus:
+            return
+
         logger.debug('block solve button')
         if self.thread != None and not self.thread_stopper.is_set():
             self.thread_stopper.set()
@@ -887,9 +914,12 @@ class RubiksSolver():
             logger.debug('soft stop servos')
         # and publish what's necessary for the GUI
         self.pub.publish(self.channel, {
-            'read_button_locked': False,
-            'solve_button_locked': True,
-            'scramble_button_locked': False,
+            'fix_button_locked': self.__buttons_status(False),
+            'release_button_locked': self.__buttons_status(False),
+            'infinite_button_locked': self.__buttons_status(False),
+            'read_button_locked': self.__buttons_status(False),
+            'solve_button_locked': self.__buttons_status(True),
+            'scramble_button_locked': self.__buttons_status(False),
             'read_status': 0,
             'solve_status': 0,
             'scramble_status': 0
@@ -914,9 +944,12 @@ class RubiksSolver():
         """
         logger.debug('reading cube')
         self.pub.publish(self.channel, {
-            'read_button_locked': True,
-            'solve_button_locked': True,
-            'scramble_button_locked': True,
+            'fix_button_locked': self.__buttons_status(True),
+            'release_button_locked': self.__buttons_status(True),
+            'infinite_button_locked': self.__buttons_status(True),
+            'read_button_locked': self.__buttons_status(True),
+            'solve_button_locked': self.__buttons_status(True),
+            'scramble_button_locked': self.__buttons_status(True),
             'read_status': 0,
             'solve_status': 0,
             'scramble_status': 0
@@ -925,12 +958,16 @@ class RubiksSolver():
         # instantiate arms and reposition
         robot_arms = self.__instantiate_arms_in_release_mode(self.config)
         generator = arms.ArmSolutionGenerator(*robot_arms)
-        generator.reposition_arms(delay=1.0)
-        generator.fix()
+        if not self.isFixedCube:
+            generator.reposition_arms(delay=0.5)
+            generator.fix()
 
-        # generate the sequence of motions and actions to
-        # scan the rubik's cube
-        generator = arms.ArmSolutionGenerator(*robot_arms)
+        # test solve code
+        # str = 'RRDUUDUULFRRFRRDDBFFDFFDULBLDRLDBLBUFLLULLBBBFUUFBBRRD'
+        # self.generator = generator
+        # self.cubesolution = list( str )
+        # self.thread_stopper.set()
+        # return
 
         # F
         generator.take_capture_order()
@@ -1012,9 +1049,12 @@ class RubiksSolver():
 
             # update the progress bar
             self.pub.publish(self.channel, {
-                'read_button_locked': True,
-                'solve_button_locked': True,
-                'scramble_button_locked': True,
+                'fix_button_locked': self.__buttons_status(True),
+                'release_button_locked': self.__buttons_status(True),
+                'infinite_button_locked': self.__buttons_status(True),
+                'read_button_locked': self.__buttons_status(True),
+                'solve_button_locked': self.__buttons_status(True),
+                'scramble_button_locked': self.__buttons_status(True),
                 'read_status': 100 * (idx + 1) / length,
                 'solve_status': 0,
                 'scramble_status' : 0
@@ -1093,9 +1133,12 @@ class RubiksSolver():
             self.stop(hard=False)
 
         self.pub.publish(self.channel, {
-            'read_button_locked': False,
-            'solve_button_locked': False,
-            'scramble_button_locked': False,
+            'fix_button_locked': self.__buttons_status(False),
+            'release_button_locked': self.__buttons_status(False),
+            'infinite_button_locked': self.__buttons_status(False),
+            'read_button_locked': self.__buttons_status(False),
+            'solve_button_locked': self.__buttons_status(False),
+            'scramble_button_locked': self.__buttons_status(False),
             'read_status': 100,
             'solve_status': 0,
             'scramble_status' : 0
@@ -1120,9 +1163,12 @@ class RubiksSolver():
         """
         logger.debug('solving cube')
         self.pub.publish(self.channel, {
-            'read_button_locked': True,
-            'solve_button_locked': True,
-            'scramble_button_locked': True,
+            'fix_button_locked': self.__buttons_status(True),
+            'release_button_locked': self.__buttons_status(True),
+            'infinite_button_locked': self.__buttons_status(True),
+            'read_button_locked': self.__buttons_status(True),
+            'solve_button_locked': self.__buttons_status(True),
+            'scramble_button_locked': self.__buttons_status(True),
             'read_status': 100,
             'solve_status': 0,
             'scramble_status': 0
@@ -1130,7 +1176,9 @@ class RubiksSolver():
 
         # stop this thread if there's no solution
         if not self.cubesolution:
+            self.infiniteStatus = False
             self.thread_stopper.set()
+            self.thread2_stopper.set()
             return
 
         # otherwise instantiate the arms and reposition (and eventually solve the cube)
@@ -1152,9 +1200,12 @@ class RubiksSolver():
                 logger.debug('Execute \'' + str(step) + '\'')
                 success = self.__execute_command(step)
             self.pub.publish(self.channel, {
-                'read_button_locked': True,
-                'solve_button_locked': True,
-                'scramble_button_locked': True,
+                'fix_button_locked': self.__buttons_status(True),
+                'release_button_locked': self.__buttons_status(True),
+                'infinite_button_locked': self.__buttons_status(True),
+                'read_button_locked': self.__buttons_status(True),
+                'solve_button_locked': self.__buttons_status(True),
+                'scramble_button_locked': self.__buttons_status(True),
                 'read_status': 100,
                 'scramble_status': 0,
                 'solve_status': 100 * (idx + 1) / length
@@ -1162,6 +1213,17 @@ class RubiksSolver():
             idx += 1
 
         self.thread_stopper.set()
+        self.pub.publish(self.channel, {
+            'fix_button_locked': self.__buttons_status(False),
+            'release_button_locked': self.__buttons_status(False),
+            'infinite_button_locked': self.__buttons_status(False),
+            'read_button_locked': self.__buttons_status(False),
+            'solve_button_locked': self.__buttons_status(True),
+            'scramble_button_locked': self.__buttons_status(False),
+            'read_status': 0,
+            'solve_status': 0,
+            'scramble_status' : 0
+        })
 
     def scramble_str(self, scramble_length):
         moves = ["R", "R'", "R2", "L", "L'", "L2", "U", "U'", "U2", "D", "D'", "D2", "F", "F'", "F2", "B", "B'", "B2"]
@@ -1198,9 +1260,12 @@ class RubiksSolver():
         """
         logger.debug('scramble cube')
         self.pub.publish(self.channel, {
-            'read_button_locked': True,
-            'solve_button_locked': True,
-            'scramble_button_locked': True,
+            'fix_button_locked': self.__buttons_status(True),
+            'release_button_locked': self.__buttons_status(True),
+            'infinite_button_locked': self.__buttons_status(True),
+            'read_button_locked': self.__buttons_status(True),
+            'solve_button_locked': self.__buttons_status(True),
+            'scramble_button_locked': self.__buttons_status(True),
             'read_status': 0,
             'solve_status': 0,
             'scramble_status' : 0
@@ -1208,8 +1273,9 @@ class RubiksSolver():
 
         robot_arms = self.__instantiate_arms_in_fix_mode(self.config)
         generator = arms.ArmSolutionGenerator(*robot_arms)
-        generator.reposition_arms(delay=1.0)
-        generator.fix()
+        if not self.isFixedCube:
+            generator.reposition_arms(delay=0.5)
+            generator.fix()
 
         # stop this thread if there's no solution
         self.cubesolution	= self.scramble_str(1) 
@@ -1233,9 +1299,12 @@ class RubiksSolver():
                 logger.debug('Execute \'' + str(step) + '\'')
                 success = self.__execute_command(step)
             self.pub.publish(self.channel, {
-                'read_button_locked': True,
-                'solve_button_locked': True,
-                'scramble_button_locked': True,
+                'fix_button_locked': self.__buttons_status(True),
+                'release_button_locked': self.__buttons_status(True),
+                'infinite_button_locked': self.__buttons_status(True),
+                'read_button_locked': self.__buttons_status(True),
+                'solve_button_locked': self.__buttons_status(True),
+                'scramble_button_locked': self.__buttons_status(True),
                 'read_status': 0,
                 'solve_status': 0,
                 'scramble_status':  100 * (idx + 1) / length
@@ -1244,9 +1313,12 @@ class RubiksSolver():
 
         self.thread_stopper.set()
         self.pub.publish(self.channel, {
-            'read_button_locked': False,
-            'solve_button_locked': True,
-            'scramble_button_locked': False,
+            'fix_button_locked': self.__buttons_status(False),
+            'release_button_locked': self.__buttons_status(False),
+            'infinite_button_locked': self.__buttons_status(False),
+            'read_button_locked': self.__buttons_status(False),
+            'solve_button_locked': self.__buttons_status(True),
+            'scramble_button_locked': self.__buttons_status(False),
             'read_status': 0,
             'solve_status': 0,
             'scramble_status' : 100
@@ -1254,49 +1326,40 @@ class RubiksSolver():
 
     def infinitecube(self, event):
         logger.debug('start thread for infinite the cube')
+        self.thread_stopper.clear()
+        sleep(0.5)
         self.thread2_stopper.clear()
         self.thread2 = td.Thread(target=self.infinitecube_thread2, args=(event,))
         self.thread2.start()
 
     def infinitecube_thread2(self, event):
-        self.pub.publish(self.channel, {
-            'read_button_locked': True,
-            'solve_button_locked': True,
-            'scramble_button_locked': True,
-            'read_status': 0,
-            'solve_status': 0,
-            'scramble_status' : 0
-        })
 
-        config = event.kwargs.get('config')
+        loopIdx	= 1 
+        config 	= event.kwargs.get('config')
         while self.infiniteStatus:
 
             self.scramblecube(event)
             self.thread.join()
+            sleep(1.5)
             if not self.infiniteStatus:
                break
 
-            self.read(config=config)
+            self.readcube(event)
             self.thread.join()
+            sleep(1.5)
             if not self.infiniteStatus:
                break
 
-            self.solve()
+            self.solvecube(event)
             self.thread.join()
+            sleep(3)
             if not self.infiniteStatus:
                break
 
-            print("complete")
-        
+            print("complete : loopIdx = ", loopIdx)
+            loopIdx = loopIdx + 1
+
         self.thread2_stopper.set()
-        self.pub.publish(self.channel, {
-            'read_button_locked': False,
-            'solve_button_locked': False,
-            'scramble_button_locked': False,
-            'read_status': 0,
-            'solve_status': 0,
-            'scramble_status' : 0
-        })
 
     def process_command(self, event):
         """
@@ -1315,14 +1378,13 @@ class RubiksSolver():
             generator = arms.ArmSolutionGenerator(*robot_arms)
 
             if action == 'fix':
-                generator.reposition_arms(delay=1.0)
                 generator.fix()
             elif action == 'release':
                 generator.release()
-                generator.reposition_arms(delay=1.0)
+                generator.reposition_arms(delay=0.5)
             elif action == 'stop':
                 generator.release()
-                generator.reposition_arms(delay=1.0)
+                generator.reposition_arms(delay=0.5)
 
             sequence = generator.arms_solution
             for step in sequence:
@@ -1407,16 +1469,19 @@ if __name__ == '__main__':
                         elif 'solve cube' == msg:
                             rubiks.solve() # change state here
                         elif 'stop' == msg:
-                            rubiks.infiniteStatus = False
+                            rubiks.infiniteStatus 	= False
+                            rubiks.isFixedCube		= False
                             rubiks.thread2_stopper.set()
-                            rubiks.stop(hard=False) # change state here
-                            rubiks.command(config=config, type='system', action='stop') # reflexive state here
-                            rubiks.stop(hard=True) # change state here
+                            rubiks.stop(hard=False)
+                            rubiks.command(config=config, type='system', action='stop')
+                            rubiks.stop(hard=True)
                         elif 'scramble cube' == msg:
                             rubiks.scramble(config=config) # change state here
                         elif 'fix' == msg:
+                            rubiks.isFixedCube	= True
                             rubiks.command(config=config, type='system', action='fix') # reflexive state here
                         elif 'release' == msg:
+                            rubiks.isFixedCube	= False
                             rubiks.command(config=config, type='system', action='release') # reflexive state here
                         elif 'infinite' == msg:
                             rubiks.infiniteStatus	= True
@@ -1436,7 +1501,8 @@ if __name__ == '__main__':
                 # transition to rest from the solving state if the cube got solved
                 if rubiks.state == 'solving' and rubiks.is_finished(None):
                     rubiks.success()
-                    rubiks.command( config=config, type='system', action='release') # reflexive state here
+                    if not rubiks.infiniteStatus:
+                        rubiks.command( config=config, type='system', action='release') # reflexive state here
                     logger.info('the rubik\'s cube got solved')
 
             sleep(0.001)

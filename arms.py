@@ -261,6 +261,11 @@ class ArmSolutionGenerator:
 
     def fix(self):
         self.arms_solution += [
+                self.up.move(State.BACK, False, False),
+                self.right.move(State.BACK, False, False),
+                self.down.move(State.BACK, False, False),
+                self.left.move(State.BACK),
+
                 self.up.rotate(State.ANTICLOCKWISE, False, False),
                 self.right.rotate(State.ANTICLOCKWISE, False, False),
                 self.down.rotate(State.ANTICLOCKWISE, False, False),
