@@ -1,14 +1,19 @@
-# Rubiks Solver Robot for Rasberry PI 3 B+
-- 아직 작업중. 작업률 ( 80% )
+# Rubiks Solver Robot for Raspberry PI 3 B+
 
 ![](http://www.widerplanet.com/inc/images/common/widerplanet_logo.png)
  - 와이더플래닛 사내 동아리( 와삼디 ) 첫번째 로봇 작품.
 
 # 하드웨어
- - ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-06-23-1.jpg)
+ - Raspberray PI 3 B+
  - 하드웨어는 http://www.rcr3d.com/hardware.html 사용.
  - 카메라 : 노보맥스 리얼 HD 1300만 화소 ( QCAM-1200HD )
  - Maestro 12 chanel servo control
+
+# 3D Models
+ - https://www.thingiverse.com/thing:2471044
+ - ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-06-23-1.jpg)
+ - https://www.thingiverse.com/thing:3558713
+ - ![](https://github.com/dancal/wp_rubiks/blob/master/history/robot_preview_featured.jpg)
 
 # 소프트웨어
  - ![](https://github.com/dancal/wp_rubiks/blob/master/history/GUI.png)
@@ -19,18 +24,34 @@
 # 3D 프린터
  - Ender 3
 
+# 사용 OS
+ - Raspbian Buster with desktop and recommended software ( Version : July 2019 )
+ - https://www.raspberrypi.org/downloads/raspbian/
+
 # 사용 언어
  - python3.7
 
-# 필요 Python 패키지
+# 사용한 Python 패키지 및 코드
  - opencv
  - serial
  - random
  - numpy
  - webcolors
+ - kociemba
+ - tkinter
+ - sklearn.cluster import KMeans
+
+# 데모 영상 ( youtube video )
+[![play4](https://img.youtube.com/vi/oOOipLj4oXw/0.jpg)](https://youtu.be/oOOipLj4oXw?t=0)
 
 # 작업 히스토리
- - 2019.08.?? : Rubiks LCD 장착.
+ - 2019.08.13 : Rubiks LCD 장착.
+ ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-13-1.jpg)
+ ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-13-2.jpg)
+ ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-13-3.jpg)
+
+ - 2019.08.12 : Rubiks LCD 배송 완료.
+ ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-12-1.jpg)
 
  - 2019.08.09 : Rubiks 소프트웨어 릴리즈 및 버그 픽스 & 풀 테스트 
 [![play3](https://img.youtube.com/vi/BoThWM9IN90/0.jpg)](https://youtu.be/BoThWM9IN90?t=0)
