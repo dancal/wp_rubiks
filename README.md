@@ -1,6 +1,6 @@
-# Rubiks Solver Robot for Raspberry PI 3 B+
+# Rubiks Cube Solver Robot for Raspberry PI 3 B+
 
-![](http://www.widerplanet.com/inc/images/common/widerplanet_logo.png)
+ - ![](http://www.widerplanet.com/inc/images/common/widerplanet_logo.png)
  - 와이더플래닛 사내 동아리( 와삼디 ) 첫번째 로봇 작품.
 
 # 하드웨어
@@ -11,16 +11,20 @@
 
 # 3D Models
  - https://www.thingiverse.com/thing:2471044
- - ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-06-23-1.jpg)
+   ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-06-23-1.jpg)
  - https://www.thingiverse.com/thing:3558713
- - ![](https://github.com/dancal/wp_rubiks/blob/master/history/robot_preview_featured.jpg)
+   ![](https://github.com/dancal/wp_rubiks/blob/master/history/robot_preview_featured.jpg)
 
 # 소프트웨어
- - ![](https://github.com/dancal/wp_rubiks/blob/master/history/GUI.png)
+ - maestro 12 chanel servo controller over USB ( Python ) 
+   https://github.com/FRC4564/Maestro
  - 소프트웨어는 https://github.com/RobertLucian/rubiks-cube-solver 를 베이스로 개발. ( thanks for RobertLucian )
- - maestro 12 chanel servo controller over USB - https://github.com/FRC4564/Maestro 사용.
- - ![](https://github.com/dancal/wp_rubiks/blob/master/history/2019-08-09-093158_1920x1080_scrot.png)
- 
+   ![](https://github.com/dancal/wp_rubiks/blob/master/history/GUI.png)
+ - 초기 버전
+   ![](https://github.com/dancal/wp_rubiks/blob/master/history/2019-08-09-093158_1920x1080_scrot.png)
+ - 완성 버전
+   ![](https://github.com/dancal/wp_rubiks/blob/master/history/photo_2019-08-13_13-03-53.jpg)
+    
 # 3D 프린터
  - Ender 3
 
