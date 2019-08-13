@@ -5,9 +5,9 @@
 
 # 하드웨어
  - Raspberray PI 3 B+
- - 하드웨어는 http://www.rcr3d.com/hardware.html 사용.
- - 카메라 : 노보맥스 리얼 HD 1300만 화소 ( QCAM-1200HD )
  - Maestro 12 chanel servo control
+ - 카메라 : 노보맥스 리얼 HD 1300만 화소 ( QCAM-1200HD )
+ - 로봇 하드웨어는 http://www.rcr3d.com/hardware.html 사용.
 
 # 3D Models
  - https://www.thingiverse.com/thing:2471044
