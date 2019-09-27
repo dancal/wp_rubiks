@@ -1,4 +1,4 @@
-# Rubiks Cube Solver Robot for Raspberry PI 3 B+
+# The software that solves the Rubik's Cube on a Raspberry PI 3 B+
 
  - ![](http://www.widerplanet.com/inc/images/common/widerplanet_logo.png)
  - 와이더플래닛 사내 동아리( 와삼디 ) 첫번째 로봇 작품.
