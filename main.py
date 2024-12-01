@@ -7,6 +7,7 @@ from sklearn.cluster import KMeans
 from operator import itemgetter
 from collections import Counter
 
+import re
 import numpy
 import random
 import tkinter as tk
@@ -93,7 +94,7 @@ class Solver(Page):
         if isbusy:
             self.after(10, self.show_frame)
         else:
-            scale       	= 2.5
+            scale       	= 2.6
             v_width    		= int(640 / scale)
             v_height 		= int(480 / scale)
             ok, frame 		= camera.cam.read()
@@ -119,20 +120,23 @@ class Solver(Page):
                         g   = rgb[1]
                         b   = rgb[2]
 
-                        colorname = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent(rgb))
+						
+                        colorname = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
                         if crow == 1 and ccol == 1:
                             self.cubematrix[idx][crow][ccol].config(text=sname)
+
                         self.cubematrix[idx][crow][ccol].config(bg=self._from_rgb(colorname))
+
                         if not self.is_use_scan_cube_label:
                             self.cubematrix[idx][crow][ccol].grid_remove()
                         else:
-                            self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=2, padx=2, pady=2)
+                            self.cubematrix[idx][crow][ccol].grid(row=crow, column=ccol, ipadx=1, ipady=2, padx=2, pady=1)
 
             scanimg		= {}
             try:
                 scanimg	= camera.cv_images[idx]
                 if self.scanImageFrame[sname]['wraplength'] != 10:
-                    scanimg = Image.fromarray(scanimg).resize((108,97))
+                    scanimg = Image.fromarray(scanimg).resize((108,90))
                     scanout = ImageTk.PhotoImage(scanimg)
                     self.scanImageFrame[sname].configure(image=scanout)
                     self.scanImageFrame[sname].image = scanout
@@ -240,7 +244,7 @@ class Solver(Page):
         if os.path.isfile(cube_image_file):
             scanimg = cv2.imread(cube_image_file, cv2.IMREAD_COLOR) 
             scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
-            scanimg = Image.fromarray(scanimg).resize((108,97))
+            scanimg = Image.fromarray(scanimg).resize((108,90))
             scanout = ImageTk.PhotoImage(scanimg)
 
         for idx, cubename in enumerate(self.cubeScanList):
@@ -610,14 +614,16 @@ class PiCameraPhotos():
         :return: A Pillow.Image image.
         """
         self.isbusy	= True
-
+        """
         x			= 30
         y			= 10
         img			= self.cv_image;
         h 			= img.shape[0] - 50
         w 			= img.shape[1] - 50
         img 		= img[y:y+h, x:x+w]
+        """
 
+        img			= self.cv_image;
         #img 		= cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         #img 		= cv2.bilateralFilter(img, 9, 75, 75)
         #img 		= cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -683,6 +689,46 @@ class PiCameraPhotos():
 
         return img
 
+    def color_to_rgb(self, color):
+        if color == 'none' or isinstance(color, (list, tuple)):
+            rgb = color
+        elif re.match('#', color):
+            rgb = webcolors.hex_to_rgb(color)
+        else:
+            rgb = webcolors.name_to_rgb(color)
+        return rgb
+
+    def closest_color(self, rgb):
+        differences = {}
+        for color_hex, color_name in webcolors.CSS3_HEX_TO_NAMES.items():
+            r, g, b = webcolors.hex_to_rgb(color_hex)
+            differences[sum([(r - rgb[0]) ** 2,
+                             (g - rgb[1]) ** 2,
+                             (b - rgb[2]) ** 2])] = color_name
+
+        sColor = 'white'
+        fColor = differences[min(differences.keys())]
+        if fColor.find('grey') >= 0:
+           sColor = 'white'
+        if fColor.find('silver') >= 0:
+           sColor = 'white'
+
+        if fColor.find('blue') >= 0:
+           sColor = 'blue'
+
+        if fColor.find('green') >= 0:
+           sColor = 'green'
+
+        if fColor.find('yellow') >= 0:
+           sColor = 'yellow'
+
+        if fColor.find('brick') >= 0:
+           sColor = 'red'
+        if fColor.find('red') >= 0:
+           sColor = 'red'
+
+        return sColor
+
     def get_camera_color_patches(self, xoff, yoff, dim, pad, pic_counter):
         """
         Captures an image, processes it and selects the Regions-of-Interest, after which
@@ -693,6 +739,7 @@ class PiCameraPhotos():
         :return: A LAB image as a 3x3x3 numpy array for all 9 labels of a cube's face.
         """
         img = self.get_processed_image()
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         roi = self.get_camera_roi(xoff, yoff, dim, pad)
         color_patches = np.zeros(shape=(3, 3, 3), dtype=np.uint8)
 
@@ -708,17 +755,20 @@ class PiCameraPhotos():
                 r		= pixel[0]
                 g		= pixel[1]
                 b		= pixel[2]
-                rColor	= webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
+
+                rColor    = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
+                colorName = self.closest_color(rColor);
+
+                print('rColor = ', rColor)
+                print('sColor = ', colorName)
 
                 color_patches[row, col, :] = rColor
                 self.cubeColors[pic_counter][row][col]	= rColor
-                #self.cubeColors[pic_counter][row][col]	= [int(x) for x in pixel]
-                #colorname = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
 
         """
         #
-        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        img = cv2.bilateralFilter(img, 9, 75, 75)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #img = cv2.bilateralFilter(img, 9, 75, 75)
         img = ~img
 
         for row in range(3):
@@ -1511,7 +1561,7 @@ if __name__ == '__main__':
     fsm_thread.start()
 
     try:
-        app = MainView(size='800x480', name='WASAMD - Rubik\'s Cube Solver')
+        app = MainView(size='800x450', name='WASAMD - Rubik\'s Cube Solver')
         app.mainloop()
     except Exception as e:
         logger.exception(e)

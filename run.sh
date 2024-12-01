@@ -1,3 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
-python3 main.py
+cd /home/pi/works/wp_rubiks
+/usr/bin/python3 ./main.py

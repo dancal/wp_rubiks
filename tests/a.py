@@ -31,20 +31,25 @@ def assistant_speaks(output):
     # playsound package is used to play the same file. 
     playsound.playsound(file, True)  
     os.remove(file)
+
 def get_audio(): 
   
     rObject = sr.Recognizer() 
     audio = '' 
   
     with sr.Microphone() as source: 
+        #rObject.adjust_for_ambient_noise(source, duration = 1)
+
         print("Speak...") 
           
         # recording the audio using speech recognition 
         audio = rObject.listen(source, phrase_time_limit = 5)  
         print("Stop.") # limit 5 secs 
   
+        text = ""
         try:
             text = rObject.recognize_sphinx(audio, language ='en-US') 
+            #text = rObject.recognize_google(audio, language ='en-US') 
             print("You : ", text) 
         except:
             print("error sphinx")

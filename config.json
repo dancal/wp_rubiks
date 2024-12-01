@@ -1,29 +1,29 @@
 {
     "camera": {
-        "Pad (px)": 65,
-        "Size (px)": 60,
-        "X Offset (px)": 160,
-        "Y Offset (px)": 70
+        "Pad (px)": 75,
+        "Size (px)": 40,
+        "X Offset (px)": 210,
+        "Y Offset (px)": 90
     },
     "servos": {
         "s1": {
-            "high": 4450,
+            "high": 4250,
             "low": 8000
         },
         "s2": {
             "high": 8000,
-            "low": 4150
+            "low": 4000
         },
         "s3": {
-            "high": 5250,
+            "high": 5000,
             "low": 8000
         },
         "s4": {
-            "high": 7800,
-            "low": 3800
+            "high": 8000,
+            "low": 3700
         },
         "s5": {
-            "high": 4900,
+            "high": 4700,
             "low": 8000
         },
         "s6": {
@@ -31,11 +31,11 @@
             "low": 4000
         },
         "s7": {
-            "high": 4850,
+            "high": 4500,
             "low": 8000
         },
         "s8": {
-            "high": 7850,
+            "high": 7800,
             "low": 4050
         }
     }
