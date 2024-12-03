@@ -25,6 +25,19 @@ import logging
 import sys
 import webcolors
 
+from sklearn.cluster import KMeans
+from scipy.spatial import distance
+
+# 6면체 큐브의 기준 색상 (LAB 색 공간, 예시값)
+REFERENCE_COLORS = [
+    [0, 128, 128],  # White
+    [128, 255, 128],  # Green
+    [128, 128, 255],  # Blue
+    [255, 128, 128],  # Red
+    [255, 255, 128],  # Yellow
+    [255, 128, 255],  # Orange
+]
+
 class QueuePubSub():
     '''
     Class that implements the notion of subscribers/publishers by using standard queues
@@ -683,56 +696,38 @@ class PiCameraPhotos():
 
         return img
 
+    def extract_color_patch(img, x, y, dim):
+        region_pixels = img[y:y+dim, x:x+dim]
+        mean_pixel = region_pixels.mean(axis=(0, 1))
+        lab_color = rgb_to_lab(mean_pixel)
+        return lab_color
+    
     def get_camera_color_patches(self, xoff, yoff, dim, pad, pic_counter):
-        """
-        Captures an image, processes it and selects the Regions-of-Interest, after which
-        they get averaged and a array of 3x3x3 elements are returned: 3x3 labels by 3
-        channels. Each pixel needs 3 channels.
-        It needs the `xoff`, `yoff`, `dim` and `pad` arguments when calling get_camera_roi
-        method.
-        :return: A LAB image as a 3x3x3 numpy array for all 9 labels of a cube's face.
-        """
         img = self.get_processed_image()
         roi = self.get_camera_roi(xoff, yoff, dim, pad)
         color_patches = np.zeros(shape=(3, 3, 3), dtype=np.uint8)
-
+    
+        all_lab_colors = []
         for row in range(3):
             for col in range(3):
-                cropper = roi[row][col]
-                x = cropper['x']
-                y = cropper['y']
-                dim = cropper['dim']
-                temp = img[y:y+dim, x:x+dim]
-                temp = temp.reshape(temp.shape[0] * temp.shape[1], temp.shape[2])
-                pixel 	= temp.mean(axis=0)
-                r		= pixel[0]
-                g		= pixel[1]
-                b		= pixel[2]
-                rColor	= webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
-
-                color_patches[row, col, :] = rColor
-                self.cubeColors[pic_counter][row][col]	= rColor
-                #self.cubeColors[pic_counter][row][col]	= [int(x) for x in pixel]
-                #colorname = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent((r,g,b)))
-
-        """
-        #
-        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        img = cv2.bilateralFilter(img, 9, 75, 75)
-        img = ~img
-
-        for row in range(3):
-            for col in range(3):
-                cropper = roi[row][col]
-                x = cropper['x']
-                y = cropper['y']
-                dim = cropper['dim']
-                temp = img[y:y+dim, x:x+dim]
-                temp = temp.reshape(temp.shape[0] * temp.shape[1], temp.shape[2])
-                pixel = temp.mean(axis=0)
-                color_patches[row, col, :] = [int(x) for x in pixel]
-        """
-
+                region = roi[row][col]
+                x, y, dim = region['x'], region['y'], region['dim']
+                lab_color = extract_color_patch(img, x, y, dim)
+                all_lab_colors.append(lab_color)
+    
+        # K-Means 클러스터링
+        cluster_centers, labels = cluster_colors(np.array(all_lab_colors), n_colors=6)
+        
+        # 색상 매핑
+        matched_colors = match_colors(cluster_centers, REFERENCE_COLORS)
+        
+        # 결과 매핑
+        for idx, lab_color in enumerate(all_lab_colors):
+            row, col = divmod(idx, 3)
+            matched_color = matched_colors[labels[idx]]
+            color_patches[row, col, :] = matched_color
+            self.cubeColors[pic_counter][row][col] = matched_color
+    
         return color_patches
 
     def destructor(self):
