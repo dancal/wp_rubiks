@@ -60,6 +60,14 @@ def match_colors(cluster_centers_lab, reference_colors_rgb):
     nearest = np.argmin(d, axis=1)
     return [tuple(map(int, reference_colors_rgb[i])) for i in nearest]
 
+def rgb_array_to_lab(rgb_array):
+    rgb = np.asarray(rgb_array, dtype=np.float32)
+    rgb = np.clip(rgb, 0, 255).astype(np.uint8)
+    if rgb.ndim != 2 or rgb.shape[1] != 3:
+        raise ValueError('rgb_array must be an Nx3 array')
+    lab = cv2.cvtColor(rgb.reshape(-1, 1, 3), cv2.COLOR_RGB2LAB)
+    return lab.reshape(-1, 3).astype(np.float32)
+
 class QueuePubSub():
     '''
     Class that implements the notion of subscribers/publishers by using standard queues
@@ -735,31 +743,47 @@ class PiCameraPhotos():
         lab_color = rgb_to_lab(rgb_med)
         return lab_color
     
+    @staticmethod
+    def extract_rgb_patch(img, x, y, dim):
+        region_pixels = img[y:y+dim, x:x+dim]
+        if region_pixels.size == 0:
+            return np.array([0, 0, 0], dtype=np.float32)
+        h, w = region_pixels.shape[:2]
+        y0 = int(h * 0.25)
+        y1 = int(h * 0.75)
+        x0 = int(w * 0.25)
+        x1 = int(w * 0.75)
+        core = region_pixels[y0:y1, x0:x1]
+        if core.size == 0:
+            core = region_pixels
+        rgb_med = np.median(core.reshape(-1, 3), axis=0)
+        return rgb_med.astype(np.float32)
+    
     def get_camera_color_patches(self, xoff, yoff, dim, pad, pic_counter):
         img = self.get_processed_image()
         roi = self.get_camera_roi(xoff, yoff, dim, pad)
         color_patches = np.zeros(shape=(3, 3, 3), dtype=np.uint8)
     
-        all_lab_colors = []
+        all_rgb_patches = []
         for row in range(3):
             for col in range(3):
                 region = roi[row][col]
                 x, y, dim = region['x'], region['y'], region['dim']
-                lab_color = PiCameraPhotos.extract_color_patch(img, x, y, dim)
-                all_lab_colors.append(lab_color)
+                rgb = PiCameraPhotos.extract_rgb_patch(img, x, y, dim)
+                all_rgb_patches.append(rgb)
     
         # K-Means 클러스터링
-        cluster_centers, labels = cluster_colors(np.array(all_lab_colors), n_colors=6)
+        # cluster_centers, labels = cluster_colors(np.array(all_rgb_patches), n_colors=6)
         
         # 색상 매핑
-        matched_colors = match_colors(cluster_centers, REFERENCE_COLORS)
+        # matched_colors = match_colors(cluster_centers, REFERENCE_COLORS)
         
         # 결과 매핑
-        for idx, lab_color in enumerate(all_lab_colors):
+        for idx, rgb in enumerate(all_rgb_patches):
             row, col = divmod(idx, 3)
-            matched_color = matched_colors[labels[idx]]
-            color_patches[row, col, :] = matched_color
-            self.cubeColors[pic_counter][row][col] = matched_color
+            rgb_u8 = np.clip(rgb, 0, 255).astype(np.uint8)
+            color_patches[row, col, :] = rgb_u8
+            self.cubeColors[pic_counter][row][col] = tuple(map(int, rgb_u8))
     
         return color_patches
 
@@ -980,7 +1004,7 @@ class RubiksSolver():
             'scramble_button_locked': self.__buttons_status(True),
             'read_status': 0,
             'solve_status': 0,
-            'scramble_status': 0
+            'scramble_status' : 0
         })
 
         # instantiate arms and reposition
@@ -1114,15 +1138,24 @@ class RubiksSolver():
         for i in range(6):
             reoriented_faces[i] = reoriented_faces[i].reshape((3*3, 3))
 
-        # clusterize the labels on the rubik's cube
-        rubiks_colors = np.concatenate(reoriented_faces, axis=0)
-        #kmeans = KMeans(n_clusters=6, algorithm='auto', n_init=50).fit(rubiks_colors)
-        kmeans = KMeans(n_clusters=6).fit(rubiks_colors)
-        rubiks_labels = kmeans.labels_
+        # Option 3: runtime calibration by using the 6 center stickers as references.
+        # reoriented_faces are already in the order expected by kociemba: URFDLB.
+        rubiks_colors = np.concatenate(reoriented_faces, axis=0).reshape(-1, 3)
+        rubiks_lab = rgb_array_to_lab(rubiks_colors)
 
-        # get the cube's centers as numeric values
-        center_indexes = [4, 13, 22, 31, 40, 49] # cube centers when flattened
-        cube_centers = list(itemgetter(*center_indexes)(rubiks_labels))
+        # cube centers when flattened (URFDLB order)
+        center_indexes = [4, 13, 22, 31, 40, 49]
+        centers_lab = rubiks_lab[center_indexes]
+
+        # classify each sticker by nearest center in LAB space
+        d = distance.cdist(rubiks_lab, centers_lab, metric='euclidean')
+        rubiks_labels = np.argmin(d, axis=1).astype(int)
+
+        # ensure centers are unique labels 0..5
+        for i, ci in enumerate(center_indexes):
+            rubiks_labels[ci] = i
+
+        cube_centers = list(range(6))
         labels_of_each_color = dict(Counter(rubiks_labels))
 
         # calculate how many different colors there are on each face
