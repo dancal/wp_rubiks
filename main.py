@@ -30,13 +30,35 @@ from scipy.spatial import distance
 
 # 6면체 큐브의 기준 색상 (LAB 색 공간, 예시값)
 REFERENCE_COLORS = [
-    [0, 128, 128],  # White
-    [128, 255, 128],  # Green
-    [128, 128, 255],  # Blue
-    [255, 128, 128],  # Red
-    [255, 255, 128],  # Yellow
-    [255, 128, 255],  # Orange
+    [255, 255, 255],  # White
+    [0, 155, 72],  # Green
+    [0, 70, 173],  # Blue
+    [183, 18, 52],  # Red
+    [255, 213, 0],  # Yellow
+    [255, 88, 0],  # Orange
 ]
+
+def rgb_to_lab(rgb):
+    rgb_arr = np.asarray(rgb, dtype=np.float32)
+    rgb_arr = np.clip(rgb_arr, 0, 255).astype(np.uint8)
+    lab = cv2.cvtColor(rgb_arr.reshape(1, 1, 3), cv2.COLOR_RGB2LAB)
+    return lab.reshape(3).astype(np.float32)
+
+def cluster_colors(colors_lab, n_colors=6):
+    colors_lab = np.asarray(colors_lab, dtype=np.float32)
+    if colors_lab.ndim != 2 or colors_lab.shape[1] != 3:
+        raise ValueError('colors_lab must be an Nx3 array')
+    kmeans = KMeans(n_clusters=n_colors, n_init=10, random_state=0)
+    kmeans.fit(colors_lab)
+    return kmeans.cluster_centers_.astype(np.float32), kmeans.labels_.astype(int)
+
+def match_colors(cluster_centers_lab, reference_colors_rgb):
+    reference_colors_rgb = np.asarray(reference_colors_rgb, dtype=np.float32)
+    reference_lab = np.vstack([rgb_to_lab(rgb) for rgb in reference_colors_rgb])
+    cluster_centers_lab = np.asarray(cluster_centers_lab, dtype=np.float32)
+    d = distance.cdist(cluster_centers_lab, reference_lab, metric='euclidean')
+    nearest = np.argmin(d, axis=1)
+    return [tuple(map(int, reference_colors_rgb[i])) for i in nearest]
 
 class QueuePubSub():
     '''
@@ -696,10 +718,21 @@ class PiCameraPhotos():
 
         return img
 
+    @staticmethod
     def extract_color_patch(img, x, y, dim):
         region_pixels = img[y:y+dim, x:x+dim]
-        mean_pixel = region_pixels.mean(axis=(0, 1))
-        lab_color = rgb_to_lab(mean_pixel)
+        if region_pixels.size == 0:
+            return rgb_to_lab([0, 0, 0])
+        h, w = region_pixels.shape[:2]
+        y0 = int(h * 0.25)
+        y1 = int(h * 0.75)
+        x0 = int(w * 0.25)
+        x1 = int(w * 0.75)
+        core = region_pixels[y0:y1, x0:x1]
+        if core.size == 0:
+            core = region_pixels
+        rgb_med = np.median(core.reshape(-1, 3), axis=0)
+        lab_color = rgb_to_lab(rgb_med)
         return lab_color
     
     def get_camera_color_patches(self, xoff, yoff, dim, pad, pic_counter):
@@ -712,7 +745,7 @@ class PiCameraPhotos():
             for col in range(3):
                 region = roi[row][col]
                 x, y, dim = region['x'], region['y'], region['dim']
-                lab_color = extract_color_patch(img, x, y, dim)
+                lab_color = PiCameraPhotos.extract_color_patch(img, x, y, dim)
                 all_lab_colors.append(lab_color)
     
         # K-Means 클러스터링
