@@ -3,7 +3,19 @@
         "Pad (px)": 65,
         "Size (px)": 60,
         "X Offset (px)": 160,
-        "Y Offset (px)": 70
+        "Y Offset (px)": 70,
+        "apply_clahe": true,
+        "apply_bilateral": true,
+        "enable_stability_check": true,
+        "stability_threshold": 0.7,
+        "num_stability_samples": 3
+    },
+    "color": {
+        "calibration_method": "center_based",
+        "color_space": "LAB",
+        "distance_metric": "euclidean",
+        "enable_dynamic_calibration": true,
+        "fallback_to_reference": true
     },
     "servos": {
         "s1": {
