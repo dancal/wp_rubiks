@@ -1,4 +1,5 @@
 {
+    "virtual": true,
     "camera": {
         "Pad (px)": 65,
         "Size (px)": 60,
@@ -8,7 +9,8 @@
         "apply_bilateral": true,
         "enable_stability_check": true,
         "stability_threshold": 0.7,
-        "num_stability_samples": 3
+        "num_stability_samples": 3,
+        "use_raw_colors": true
     },
     "color": {
         "calibration_method": "center_based",

@@ -284,10 +284,10 @@ class ArmSolutionGenerator:
                 self.down.move(State.BACK, False, False),
                 self.left.move(State.BACK),
 
-                self.up.rotate(State.ANTICLOCKWISE, False, False),
-                self.right.rotate(State.ANTICLOCKWISE, False, False),
-                self.down.rotate(State.ANTICLOCKWISE, False, False),
-                self.left.rotate(State.ANTICLOCKWISE)
+                self.up.rotate(State.CLOCKWISE, False, False),
+                self.right.rotate(State.CLOCKWISE, False, False),
+                self.down.rotate(State.CLOCKWISE, False, False),
+                self.left.rotate(State.CLOCKWISE)
             ]
 
     def scramble(self, random_list):
@@ -514,6 +514,7 @@ class ArmSolutionGenerator:
         self.rotate_right(turns, way)
 
     def solution(self, rubik_solution):
+        rubik_solution = list(rubik_solution)
         index = 0
         length = len(rubik_solution)
 

@@ -3,6 +3,9 @@
 # This is the Python library for controlling the PivotPi (https://www.dexterindustries.com/Pivotpi/)
 
 import maestro
+import logging
+
+logger = logging.getLogger(__name__)
 
 SERVO_1 = 0
 SERVO_2 = 1
@@ -32,18 +35,19 @@ class PivotPi(object):
     servo_min = 990   # Min pulse length out of 4096
     servo_max = 8000  # Max pulse length out of 4096
 
-    def __init__(self, actual_frequency = 110):
+    def __init__(self, actual_frequency=110, virtual=False):
+        if virtual:
+            from virtual import VirtualController
+            self.servo_controller = VirtualController()
+            self.frequency = actual_frequency
+            logger.info('PivotPi initialized in VIRTUAL mode')
+            return
+
         try:
             self.servo_controller 	= maestro.Controller()
-            self.frequency 			= actual_frequency;
-            #for i in range(7):
-                #self.servo_controller.setAccel( i, actual_frequency )
-                #self.servo_controller.setSpeed( i, 250 )
-                    
-            # Set frequency to 60hz, good for servos.
-        except:
-            # pass
-            raise IOError("PivotPi not connected")
+            self.frequency 			= actual_frequency
+        except Exception as e:
+            raise IOError(f"PivotPi not connected: {e}")
         return
     
     def pwm(self, channel, on, off):
@@ -58,12 +62,12 @@ class PivotPi(object):
         #pwm_to_send = translate(angle, 0, 90, self.servo_min, self.servo_max)
         # self.servo_controller.setTarget(channel, int(pwm_to_send))
         try:
-            if angle >= 0 and channel >= 0 and channel <= 7:
+            if 0 <= angle <= 8000 and 0 <= channel <= 7:
                 #print("angle = ", int(angle))
                 self.servo_controller.setTarget( channel, int(angle) )
                 return 1
 
-        except:
-            raise IOError("PivotPi not connected")
+        except Exception as e:
+            raise IOError(f"PivotPi not connected: {e}")
         return -1
 

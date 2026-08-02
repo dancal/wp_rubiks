@@ -3,6 +3,7 @@ from queue import Queue
 from queue import Empty
 from time import sleep
 from PIL import ImageTk, Image, ImageDraw
+import argparse
 from sklearn.cluster import KMeans
 from operator import itemgetter
 from collections import Counter
@@ -27,6 +28,15 @@ import webcolors
 
 from sklearn.cluster import KMeans
 from scipy.spatial import distance
+import itertools
+
+try:
+    from color_detector import ColorCalibrator, ColorMatcher, ImageProcessor, StabilityChecker
+    COLOR_DETECTOR_AVAILABLE = True
+except ImportError:
+    COLOR_DETECTOR_AVAILABLE = False
+
+import re
 
 # 6면체 큐브의 기준 색상 (LAB 색 공간, 예시값)
 REFERENCE_COLORS = [
@@ -67,6 +77,188 @@ def rgb_array_to_lab(rgb_array):
         raise ValueError('rgb_array must be an Nx3 array')
     lab = cv2.cvtColor(rgb.reshape(-1, 1, 3), cv2.COLOR_RGB2LAB)
     return lab.reshape(-1, 3).astype(np.float32)
+
+
+# Kociemba corner and edge facelet definitions (0-indexed)
+# U=0-8, R=9-17, F=18-26, D=27-35, L=36-44, B=45-53
+_CORNER_FACELETS = [
+    [8, 9, 20], [6, 18, 38], [0, 36, 47], [2, 45, 11],
+    [29, 26, 15], [27, 44, 24], [33, 53, 42], [35, 17, 51],
+]
+_EDGE_FACELETS = [
+    [5, 10], [7, 19], [3, 37], [1, 46],
+    [32, 16], [28, 25], [30, 43], [34, 52],
+    [23, 12], [21, 41], [50, 39], [48, 14],
+]
+# Valid corner color sets (URFDLB label indices: 0=U,1=R,2=F,3=D,4=L,5=B)
+_VALID_CORNERS = [
+    frozenset({0, 1, 2}), frozenset({0, 2, 4}), frozenset({0, 4, 5}), frozenset({0, 5, 1}),
+    frozenset({3, 2, 1}), frozenset({3, 4, 2}), frozenset({3, 5, 4}), frozenset({3, 1, 5}),
+]
+_VALID_EDGES = [
+    frozenset({0, 1}), frozenset({0, 2}), frozenset({0, 4}), frozenset({0, 5}),
+    frozenset({1, 2}), frozenset({2, 4}), frozenset({4, 5}), frozenset({5, 1}),
+    frozenset({3, 1}), frozenset({3, 2}), frozenset({3, 4}), frozenset({3, 5}),
+]
+
+
+def _check_corners_edges(labels):
+    """Check if all corners and edges form valid pieces (no duplicates)."""
+    seen_corners = set()
+    for facelets in _CORNER_FACELETS:
+        corner = frozenset(labels[f] for f in facelets)
+        if corner not in _VALID_CORNERS or corner in seen_corners:
+            return False
+        seen_corners.add(corner)
+    seen_edges = set()
+    for facelets in _EDGE_FACELETS:
+        edge = frozenset(labels[f] for f in facelets)
+        if edge not in _VALID_EDGES or edge in seen_edges:
+            return False
+        seen_edges.add(edge)
+    return True
+
+
+def correct_color_classification(labels, dists, cube_centers_when_flat):
+    """
+    Correct color misclassifications using cube validity constraints.
+    When the distribution is unbalanced (e.g., too many red, too few orange),
+    try flipping borderline stickers from the over-represented color to the
+    under-represented color. Uses corner/edge validity and kociemba solver
+    to verify the corrected state.
+    :param labels: array of 54 label indices (0-5)
+    :param dists: 54x6 distance matrix from each sticker to each center
+    :param cube_centers_when_flat: indices of center stickers
+    :return: corrected labels array
+    """
+    labels = labels.copy()
+    kociemba_map = {0: 'U', 1: 'R', 2: 'F', 3: 'D', 4: 'L', 5: 'B'}
+
+    # Check if already balanced and valid
+    counts = Counter(labels)
+    if len(counts) == 6 and set(counts.values()) == {9}:
+        if _check_corners_edges(labels):
+            ks = ''.join(kociemba_map[l] for l in labels)
+            try:
+                kociemba.solve(ks)
+                return labels  # Valid, no correction needed
+            except Exception:
+                pass  # Fall through to correction
+
+    # Find over-represented and under-represented colors
+    target = 9
+    over_colors = [c for c in range(6) if counts.get(c, 0) > target]
+    under_colors = [c for c in range(6) if counts.get(c, 0) < target]
+
+    if not over_colors or not under_colors:
+        return labels  # Can't fix
+
+    # Find all flip candidates: stickers where the over_color is closest
+    # and an under_color is the second closest
+    flip_candidates_by_pair = {}  # (over_c, under_c) -> list of (idx, margin)
+    for over_c in over_colors:
+        for under_c in under_colors:
+            for i in range(54):
+                if i in cube_centers_when_flat:
+                    continue
+                if labels[i] != over_c:
+                    continue
+                sorted_idx = np.argsort(dists[i])
+                if sorted_idx[1] == under_c:
+                    margin = dists[i][under_c] - dists[i][over_c]
+                    flip_candidates_by_pair.setdefault((over_c, under_c), []).append((i, margin))
+
+    # Sort each pair's candidates by margin (smallest first)
+    for pair, cands in flip_candidates_by_pair.items():
+        cands.sort(key=lambda x: x[1])
+
+    # Generate all possible distributions of excess among under_colors
+    def generate_distributions(excess, under_list, available_per_under):
+        """Generate all ways to distribute `excess` flips among under_list colors."""
+        if excess == 0:
+            yield {}
+            return
+        if not under_list:
+            return
+        under = under_list[0]
+        rest = under_list[1:]
+        max_for_this = min(excess, available_per_under.get(under, 0))
+        for n in range(max_for_this + 1):
+            remaining = excess - n
+            new_avail = dict(available_per_under)
+            new_avail[under] = new_avail.get(under, 0) - n
+            for dist in generate_distributions(remaining, rest, new_avail):
+                result = dict(dist)
+                if n > 0:
+                    result[under] = n
+                yield result
+
+    # For each over_color, generate all possible distributions
+    over_distributions = []
+    for over_c in over_colors:
+        excess = counts[over_c] - target
+        available = {}
+        for under_c in under_colors:
+            pair = (over_c, under_c)
+            available[under_c] = len(flip_candidates_by_pair.get(pair, []))
+        dists_for_over = list(generate_distributions(excess, under_colors, available))
+        over_distributions.append((over_c, dists_for_over))
+
+    # Try all combinations of distributions across over_colors
+    for dist_combo in itertools.product(*[d for _, d in over_distributions]):
+        # Build the flip plan from this distribution combo
+        flip_plan = {}
+        for (over_c, _), dist in zip(over_distributions, dist_combo):
+            for under_c, n_flip in dist.items():
+                if n_flip > 0:
+                    flip_plan[(over_c, under_c)] = n_flip
+
+        if not flip_plan:
+            continue
+
+        # Check we have enough candidates for each pair
+        valid_plan = True
+        pair_combos = []
+        for pair, n_flip in flip_plan.items():
+            candidates = flip_candidates_by_pair.get(pair, [])
+            if len(candidates) < n_flip:
+                valid_plan = False
+                break
+            pair_combos.append(list(itertools.combinations(candidates, n_flip)))
+        if not valid_plan:
+            continue
+
+        # Try all combinations of specific stickers to flip
+        for combo in itertools.product(*pair_combos):
+            test_labels = labels.copy()
+            for pair_idx, pair_flips in enumerate(combo):
+                pair = list(flip_plan.keys())[pair_idx]
+                under_c = pair[1]
+                for (idx, margin) in pair_flips:
+                    test_labels[idx] = under_c
+
+            # Check distribution
+            tc = Counter(test_labels)
+            if len(tc) != 6 or set(tc.values()) != {9}:
+                continue
+
+            # Check corners and edges
+            if not _check_corners_edges(test_labels):
+                continue
+
+            # Check kociemba
+            ks = ''.join(kociemba_map[l] for l in test_labels)
+            try:
+                kociemba.solve(ks)
+                n_flipped = sum(len(pf) for pf in combo)
+                logger.info(f'Color classification corrected: {n_flipped} stickers flipped')
+                return test_labels
+            except Exception:
+                continue
+
+    # If no valid combination found, return original labels
+    logger.warning('Could not find valid color correction via cube validity constraints')
+    return labels
 
 class QueuePubSub():
     '''
@@ -141,8 +333,8 @@ class Solver(Page):
             v_height 		= int(480 / scale)
             ok, frame 		= camera.cam.read()
             if ok:
-                #frame 			= cv2.flip(frame, 1)
-                camera.cv_image	= cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) 
+                with camera.lock:
+                    camera.cv_image	= cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) 
                 img				= Image.fromarray(camera.cv_image).resize((v_width,v_height))
                 imgtk 			= ImageTk.PhotoImage(image=img)
                 self.display1.imgtk = imgtk #Shows frame for display 1
@@ -153,18 +345,56 @@ class Solver(Page):
         
     def show_scan_cube_status(self):
 
+        # Map face name to capture index (capture order: F, L, B, R, U, D)
+        capture_index = {'F': 0, 'L': 1, 'B': 2, 'R': 3, 'U': 4, 'D': 5}
+
+        # Check if classification is complete (all 6 faces have labels)
+        classification_done = all(
+            camera.cubeLabels[cap_i][1][1] != ''
+            for cap_i in capture_index.values()
+        )
+        if classification_done and not getattr(self, '_classification_logged', False):
+            self._classification_logged = True
+            logger.info(f'show_scan_cube_status: classification_done=True, '
+                        f'cubeLabels centers: {[camera.cubeLabels[i][1][1] for i in range(6)]}')
+
+        # Representative colors for each classified label (URFDLB)
+        # Use center sticker RGB of each face as the representative color.
+        # capture_index maps face name -> capture index, and the face name
+        # is the same as the URFDLB label for that face.
+        label_colors = {}
+        if classification_done:
+            for cap_name, cap_i in capture_index.items():
+                center_rgb = camera.cubeColors[cap_i][1][1]
+                if center_rgb:
+                    label_colors[cap_name] = center_rgb
+            logger.debug(f'cubeLabels[0][1][1]={camera.cubeLabels[0][1][1]}, '
+                        f'label_colors keys={list(label_colors.keys())}, '
+                        f'classification_done={classification_done}')
+
         for idx, sname in enumerate(self.cubeScanList):
+            cap_idx = capture_index.get(sname, idx)
             for crow in range(3):
                 for ccol in range(3):
-                    if camera.cubeColors[idx][crow][ccol]:
-                        rgb = camera.cubeColors[idx][crow][ccol]
-                        r   = rgb[0]
-                        g   = rgb[1]
-                        b   = rgb[2]
+                    if camera.cubeColors[cap_idx][crow][ccol]:
+                        cls_label = camera.cubeLabels[cap_idx][crow][ccol]
 
-                        colorname = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent(rgb))
+                        if classification_done and cls_label and cls_label in label_colors:
+                            # After classification: use representative color (6 colors only)
+                            bg_rgb = label_colors[cls_label]
+                            label_text = cls_label
+                            fg_color = 'white'
+                        else:
+                            # Before/during classification: show raw RGB color
+                            bg_rgb = camera.cubeColors[cap_idx][crow][ccol]
+                            label_text = cls_label if cls_label else ''
+                            fg_color = 'black'
+
                         if crow == 1 and ccol == 1:
-                            self.cubematrix[idx][crow][ccol].config(text=sname)
+                            label_text = sname
+
+                        colorname = webcolors.rgb_percent_to_rgb(webcolors.rgb_to_rgb_percent(bg_rgb))
+                        self.cubematrix[idx][crow][ccol].config(text=label_text, fg=fg_color)
                         self.cubematrix[idx][crow][ccol].config(bg=self._from_rgb(colorname))
                         if not self.is_use_scan_cube_label:
                             self.cubematrix[idx][crow][ccol].grid_remove()
@@ -173,7 +403,7 @@ class Solver(Page):
 
             scanimg		= {}
             try:
-                scanimg	= camera.cv_images[idx]
+                scanimg	= camera.cv_images[cap_idx]
                 if self.scanImageFrame[sname]['wraplength'] != 10:
                     scanimg = Image.fromarray(scanimg).resize((108,97))
                     scanout = ImageTk.PhotoImage(scanimg)
@@ -195,7 +425,7 @@ class Solver(Page):
         self.pub 				= QueuePubSub(queues)
         self.sub 				= QueuePubSub(queues).subscribe('update')
 
-        self.cubeScanList		= ['F', 'R', 'B', 'L', 'D', 'U'] 
+        self.cubeScanList		= ['F', 'R', 'B', 'L', 'D', 'U']
         self.scanImageFrame		= {}
         self.cubematrix			= [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
 
@@ -281,12 +511,20 @@ class Solver(Page):
         scanout				= {}
         cube_image_file	= './images/cube.jpg'
         if os.path.isfile(cube_image_file):
-            scanimg = cv2.imread(cube_image_file, cv2.IMREAD_COLOR) 
-            scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB) 
+            scanimg = cv2.imread(cube_image_file, cv2.IMREAD_COLOR)
+            scanimg	= cv2.cvtColor(scanimg, cv2.COLOR_BGR2RGB)
             scanimg = Image.fromarray(scanimg).resize((108,97))
             scanout = ImageTk.PhotoImage(scanimg)
 
+        # Map face name to capture index (capture order: F, L, B, R, U, D)
+        capture_index = {'F': 0, 'L': 1, 'B': 2, 'R': 3, 'U': 4, 'D': 5}
+
+        # Reset classification state
+        self._classification_logged = False
+        camera.cubeLabels = [[['' for _ in range(3)] for _ in range(3)] for _ in range(6)]
+
         for idx, cubename in enumerate(self.cubeScanList):
+            cap_idx = capture_index.get(cubename, idx)
             if scanout:
                 self.scanImageFrame[cubename].configure(image=scanout)
                 self.scanImageFrame[cubename].image = scanout
@@ -295,7 +533,7 @@ class Solver(Page):
 
             for crow in range(3):
                 for ccol in range(3):
-                    camera.cubeColors[idx][crow][ccol] = webcolors.name_to_rgb("lightgray")
+                    camera.cubeColors[cap_idx][crow][ccol] = webcolors.name_to_rgb("lightgray")
 
     def button_action(self, label):
         if label == 'Stop' or label == 'fix' or label == 'release' or label == 'scramble':
@@ -618,56 +856,61 @@ class MainView(tk.Tk):
         self.frames['Solver'].show()
 
 class PiCameraPhotos():
-    def __init__(self):
-        # initialize camera with a set of predefined values
-        """
-        # self.camera = picamera.PiCamera()
-        # self.camera.resolution = (1920, 1080)
-        # self.camera.framerate = 30
-        # self.camera.sensor_mode = 1
-        # self.camera.rotation = 180
-        # self.camera.shutter_speed = 32000
-        # self.camera.brightness = 60
-        # self.camera.exposure_mode = 'off'
-        # self.camera.rotation = 180
-        # self.camera.awb_mode = 'off'
-        # self.camera.awb_gains = 1.63
-        # also initialize the container for the image
-        # self.stream = io.BytesIO() 
-        """
-
-        self.isbusy			= False 
-        self.cam			= cv2.VideoCapture(0)
-        self.cv_image		= {}
+    def __init__(self, virtual=False):
+        self.virtual = virtual
+        self.isbusy			= False
+        self.lock			= td.Lock()
+        # image processing options (loaded from config at runtime)
+        self.apply_clahe		= True
+        self.apply_bilateral	= True
+        self.enable_stability	= True
+        self.enable_auto_roi		= True
+        self.stability_threshold	= 0.7
+        self.num_stability_samples	= 3
+        if virtual:
+            from virtual import VirtualCamera
+            self.cam			= VirtualCamera()
+            logger.info('PiCameraPhotos initialized in VIRTUAL mode')
+        else:
+            self.cam			= cv2.VideoCapture(0)
+        self.cv_image		= np.zeros((480, 640, 3), dtype=np.uint8)
         self.cv_images		= []
-        # self.cam.set(3, 640)
-        # self.cam.set(4, 480)
         self.cubeColors 	= [[[0 for col in range(3)] for row in range(3)] for face in range(6)]
+        self.cubeLabels		= [[['' for col in range(3)] for row in range(3)] for face in range(6)]
+
+    def update_config(self, camera_config):
+        """Update image processing options from config.json camera section."""
+        self.apply_clahe		= camera_config.get('apply_clahe', True)
+        self.apply_bilateral	= camera_config.get('apply_bilateral', True)
+        self.enable_stability	= camera_config.get('enable_stability_check', True)
+        self.enable_auto_roi		= camera_config.get('enable_auto_roi', True)
+        self.stability_threshold	= camera_config.get('stability_threshold', 0.7)
+        self.num_stability_samples	= camera_config.get('num_stability_samples', 3)
+        self.use_raw_colors		= camera_config.get('use_raw_colors', True)
 		
     def IsBusy(self):
         return self.isbusy
 
     def capture(self):
         """
-        Captures an image from the Pi Camera.
-        :return: A Pillow.Image image.
+        Captures an image from the camera.
+        :return: A numpy array image.
         """
-        self.isbusy	= True
+        with self.lock:
+            self.isbusy	= True
 
-        x			= 30
-        y			= 10
-        img			= self.cv_image;
-        h 			= img.shape[0] - 50
-        w 			= img.shape[1] - 50
-        img 		= img[y:y+h, x:x+w]
+            x			= 30
+            y			= 10
+            img			= self.cv_image
+            if not hasattr(img, 'shape') or img.size == 0:
+                self.isbusy = False
+                return np.zeros((480, 640, 3), dtype=np.uint8)
+            # Crop: remove 50px from bottom/right, 10px from top, 30px from left
+            img 		= img[y:img.shape[0]-50, x:img.shape[1]-50]
 
-        #img 		= cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        #img 		= cv2.bilateralFilter(img, 9, 75, 75)
-        #img 		= cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            self.isbusy	= False
 
-        self.isbusy	= False
-
-        return img
+            return img
 
     def get_camera_roi(self, xoff, yoff, dim, pad):
         """
@@ -692,17 +935,42 @@ class PiCameraPhotos():
 
     def get_processed_image(self):
         """
-        Captures an image and processes it. It applies the CLAHE algorithm,
-        a Gaussian blur and an increase of the image's saturation by a fixed amount.
+        Captures an image and processes it. Applies CLAHE on L channel of LAB
+        for contrast enhancement, and bilateral filtering for noise reduction
+        while preserving edges. Processing options are controlled by config.
         :return: RGB image as numpy array.
         """
 
-        # convert the captured image to a numpy array
         sleep(0.3)
         img = self.capture()
         img = np.asarray(img)
 
+        if img.size == 0 or img.shape[0] < 10 or img.shape[1] < 10:
+            return img
+
+        if self.apply_clahe:
+            lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+            l_channel, a_channel, b_channel = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            l_channel = clahe.apply(l_channel)
+            lab = cv2.merge((l_channel, a_channel, b_channel))
+            img = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+
+        if self.apply_bilateral:
+            img = cv2.bilateralFilter(img, d=9, sigmaColor=75, sigmaSpace=75)
+
         return img
+
+    def get_raw_image(self):
+        """
+        Captures a raw (unprocessed) image for color extraction.
+        CLAHE/bilateral processing can distort color distances (especially
+        yellow/green and red/orange), so raw colors are used for classification.
+        :return: RGB image as numpy array.
+        """
+        sleep(0.3)
+        img = self.capture()
+        return np.asarray(img)
 
     def get_overlayed_processed_image(self, xoff, yoff, dim, pad):
         """
@@ -758,33 +1026,38 @@ class PiCameraPhotos():
             core = region_pixels
         rgb_med = np.median(core.reshape(-1, 3), axis=0)
         return rgb_med.astype(np.float32)
-    
+
     def get_camera_color_patches(self, xoff, yoff, dim, pad, pic_counter):
-        img = self.get_processed_image()
+        # Use raw (unprocessed) image for color extraction when enabled.
+        # CLAHE/bilateral processing distorts color distances, especially
+        # for yellow/green and red/orange pairs.
+        if getattr(self, 'use_raw_colors', True):
+            img = self.get_raw_image()
+        else:
+            img = self.get_processed_image()
         roi = self.get_camera_roi(xoff, yoff, dim, pad)
         color_patches = np.zeros(shape=(3, 3, 3), dtype=np.uint8)
-    
+
         all_rgb_patches = []
         for row in range(3):
             for col in range(3):
                 region = roi[row][col]
-                x, y, dim = region['x'], region['y'], region['dim']
-                rgb = PiCameraPhotos.extract_rgb_patch(img, x, y, dim)
+                x, y, dim_roi = region['x'], region['y'], region['dim']
+                rgb = PiCameraPhotos.extract_rgb_patch(img, x, y, dim_roi)
                 all_rgb_patches.append(rgb)
     
-        # K-Means 클러스터링
-        # cluster_centers, labels = cluster_colors(np.array(all_rgb_patches), n_colors=6)
-        
-        # 색상 매핑
-        # matched_colors = match_colors(cluster_centers, REFERENCE_COLORS)
-        
-        # 결과 매핑
+        if COLOR_DETECTOR_AVAILABLE and self.enable_stability:
+            all_rgb_arr = np.array(all_rgb_patches, dtype=np.uint8).reshape(3, 3, 3)
+            stability = StabilityChecker(num_samples=self.num_stability_samples)
+            stability_score = stability.check_stability(all_rgb_arr.astype(np.float32))
+            logger.debug(f'pic {pic_counter} stability score: {stability_score:.3f}')
+    
         for idx, rgb in enumerate(all_rgb_patches):
             row, col = divmod(idx, 3)
             rgb_u8 = np.clip(rgb, 0, 255).astype(np.uint8)
             color_patches[row, col, :] = rgb_u8
             self.cubeColors[pic_counter][row][col] = tuple(map(int, rgb_u8))
-    
+
         return color_patches
 
     def destructor(self):
@@ -817,15 +1090,15 @@ class RubiksSolver():
         :return: True if it succeeded or False otherwise.
         """
         time = command['time']
-        # we know the servo number is the 2nd element of the string
-        servo = int(command['servo'][1]) - 1
+        servo = int(re.search(r'\d+', command['servo']).group()) - 1
         position = command['position']
 
         # move the servo
         try:
             pivotpi.angle(servo, position)
             sleep(time)
-        except:
+        except Exception as e:
+            logger.warning(f'servo command failed: {e}')
             return False
 
         return True
@@ -985,8 +1258,30 @@ class RubiksSolver():
         """
         logger.debug('start thread for reading the cube')
         self.config = event.kwargs.get('config')
+        # update camera processing options from config
+        if self.config and 'camera' in self.config:
+            camera.update_config(self.config['camera'])
         self.thread_stopper.clear()
-        self.thread = td.Thread(target=self.readcube_thread)
+        def _safe_run():
+            try:
+                self.readcube_thread()
+            except Exception as e:
+                logger.exception(f'readcube_thread failed: {e}')
+                self.cubesolution = None
+            finally:
+                self.thread_stopper.set()
+                self.pub.publish(self.channel, {
+                    'fix_button_locked': self.__buttons_status(False),
+                    'release_button_locked': self.__buttons_status(False),
+                    'infinite_button_locked': self.__buttons_status(False),
+                    'read_button_locked': self.__buttons_status(False),
+                    'solve_button_locked': self.__buttons_status(False),
+                    'scramble_button_locked': self.__buttons_status(False),
+                    'read_status': 100,
+                    'solve_status': 0,
+                    'scramble_status': 0
+                })
+        self.thread = td.Thread(target=_safe_run)
         self.thread.start()
 
     def readcube_thread(self):
@@ -1090,6 +1385,11 @@ class RubiksSolver():
                     dim = self.config['camera']['Size (px)']
                     pad = self.config['camera']['Pad (px)']
 
+                    if camera.virtual:
+                        camera.cam.set_photo_idx(pic_counter)
+                        with camera.lock:
+                            camera.cv_image = camera.cam.get_rgb()
+
                     # enable this if you want to have the cube's pics saved
                     camera.cv_images.append( camera.get_overlayed_processed_image(xoff,yoff,dim,pad) )
                     lab_face = camera.get_camera_color_patches(xoff, yoff, dim, pad, pic_counter)
@@ -1116,22 +1416,16 @@ class RubiksSolver():
         # after it has been rotated multiple times to scan its labels
         # and also map the labels so that they match the pattern imposed
         # by muodov/kociemba's library: URFDLB
-        #reoriented_faces = [
-        #    np.rot90(numeric_faces[1], k=2),  # rotate by 180 degrees
-        #    np.rot90(numeric_faces[0], k=1, axes=(0, 1)),  # rotate by 90 degrees anticlockwise
-        #    numeric_faces[5], # keep the same orientation
-        #    numeric_faces[3], # keep the same orientation
-        #    np.rot90(numeric_faces[2], k=1, axes=(1, 0)),  # rotate by 90 degrees clockwise
-        #    np.rot90(numeric_faces[4], k=2)  # rotate by 180 degrees
-        #]
-        # F = 0, R = 1, B = 2, L = 3, U = 5, D = 4
+        # Capture order (from inline comments in the capture sequence above):
+        #   pic 0 = F, pic 1 = L, pic 2 = B, pic 3 = R, pic 4 = U, pic 5 = D
+        # Map to URFDLB: U=pic4, R=pic3, F=pic0, D=pic5, L=pic1, B=pic2
         reoriented_faces = [
-            numeric_faces[5],
-            numeric_faces[1],
-            numeric_faces[0],
-            numeric_faces[4],
-            numeric_faces[3],
-            numeric_faces[2]
+            numeric_faces[4],  # U
+            numeric_faces[3],  # R
+            numeric_faces[0],  # F
+            numeric_faces[5],  # D
+            numeric_faces[1],  # L
+            numeric_faces[2]   # B
         ]
 
         # reshape the little bastard faces to be "fittable" by the KMeans algorithm
@@ -1143,17 +1437,96 @@ class RubiksSolver():
         rubiks_colors = np.concatenate(reoriented_faces, axis=0).reshape(-1, 3)
         rubiks_lab = rgb_array_to_lab(rubiks_colors)
 
-        # cube centers when flattened (URFDLB order)
-        center_indexes = [4, 13, 22, 31, 40, 49]
-        centers_lab = rubiks_lab[center_indexes]
+        cube_centers_when_flat = [4, 13, 22, 31, 40, 49]
+        centers_lab = rubiks_lab[cube_centers_when_flat]
 
-        # classify each sticker by nearest center in LAB space
+        # KMeans clustering: automatically classify 54 stickers into 6 groups
+        # without relying on pre-defined reference colors.
+        cluster_centers_lab, cluster_labels = cluster_colors(rubiks_lab, n_colors=6)
+
+        # Map each cluster to a face (URFDLB) using the center stickers.
+        # Each center sticker belongs to a known face, so the cluster it falls
+        # into tells us which face that cluster represents.
+        cluster_to_face = {}
+        for face_idx, center_idx in enumerate(cube_centers_when_flat):
+            cluster_id = cluster_labels[center_idx]
+            cluster_to_face[cluster_id] = face_idx
+
+        # Build distance matrix (used by both methods and correction algorithm)
         d = distance.cdist(rubiks_lab, centers_lab, metric='euclidean')
-        rubiks_labels = np.argmin(d, axis=1).astype(int)
 
-        # ensure centers are unique labels 0..5
-        for i, ci in enumerate(center_indexes):
-            rubiks_labels[ci] = i
+        # Use KMeans if all 6 centers are in distinct clusters AND the result
+        # is reasonably balanced (each color 9 stickers). Otherwise fall back
+        # to center-based distance classification.
+        use_kmeans = len(cluster_to_face) == 6
+        if use_kmeans:
+            rubiks_labels = np.array([cluster_to_face[c] for c in cluster_labels], dtype=int)
+            for i, ci in enumerate(cube_centers_when_flat):
+                rubiks_labels[ci] = i
+            kmeans_counts = Counter(rubiks_labels)
+            # Check if KMeans result is balanced (each color has 9 stickers)
+            if len(kmeans_counts) != 6 or set(kmeans_counts.values()) != {9}:
+                # KMeans unbalanced - check if it's worse than center-based
+                center_labels = np.argmin(d, axis=1).astype(int)
+                for i, ci in enumerate(cube_centers_when_flat):
+                    center_labels[ci] = i
+                center_counts = Counter(center_labels)
+                kmeans_imbalance = sum(abs(v - 9) for v in kmeans_counts.values())
+                center_imbalance = sum(abs(v - 9) for v in center_counts.values())
+                if center_imbalance <= kmeans_imbalance:
+                    logger.info(f'KMeans unbalanced (imbalance={kmeans_imbalance}), '
+                              f'using center-based (imbalance={center_imbalance})')
+                    rubiks_labels = center_labels
+                else:
+                    logger.info(f'KMeans classification: {dict(kmeans_counts)}')
+            else:
+                logger.info(f'KMeans classification: {dict(kmeans_counts)}')
+        else:
+            logger.warning(f'KMeans: only {len(cluster_to_face)} clusters have centers, '
+                          f'falling back to center-based distance')
+            rubiks_labels = np.argmin(d, axis=1).astype(int)
+            for i, ci in enumerate(cube_centers_when_flat):
+                rubiks_labels[ci] = i
+
+        if COLOR_DETECTOR_AVAILABLE:
+            face_colors_3x3x3 = rubiks_colors.reshape(6, 3, 3, 3)
+            centers_rgb = face_colors_3x3x3[:, 1, 1, :]
+            for face_idx in range(6):
+                face_rgb = face_colors_3x3x3[face_idx]
+                matched = ColorMatcher.match_sticker_colors(face_rgb, centers_rgb)
+                corrected = ColorMatcher.improve_color_consistency(face_rgb, matched)
+                face_colors_3x3x3[face_idx] = corrected
+            rubiks_colors = face_colors_3x3x3.reshape(-1, 3)
+            rubiks_lab = rgb_array_to_lab(rubiks_colors)
+            d = distance.cdist(rubiks_lab, centers_lab, metric='euclidean')
+            rubiks_labels = np.argmin(d, axis=1).astype(int)
+            for i, ci in enumerate(cube_centers_when_flat):
+                rubiks_labels[ci] = i
+
+        # Correct color misclassifications using cube validity constraints.
+        # This fixes common issues like red/orange confusion where the center
+        # sticker color doesn't represent the color of stickers on other faces
+        # due to lighting variation.
+        rubiks_labels = correct_color_classification(rubiks_labels, d, cube_centers_when_flat)
+
+        # Store classification labels for UI display.
+        # rubiks_labels is in URFDLB order (0=U,1=R,2=F,3=D,4=L,5=B), 54 stickers.
+        # Convert to capture order (F,L,B,R,U,D) for UI access.
+        urfdlb_to_capture = {0: 4, 1: 3, 2: 0, 3: 5, 4: 1, 5: 2}  # URFDLB idx -> capture idx
+        kociemba_letters = {0: 'U', 1: 'R', 2: 'F', 3: 'D', 4: 'L', 5: 'B'}
+        camera.cubeLabels = [['' for _ in range(3)] for _ in range(3) for _ in range(6)]
+        camera.cubeLabels = [[['' for _ in range(3)] for _ in range(3)] for _ in range(6)]
+        for flat_idx in range(54):
+            urfdlb_face = flat_idx // 9
+            sticker = flat_idx % 9
+            r, c = divmod(sticker, 3)
+            cap_idx = urfdlb_to_capture[urfdlb_face]
+            camera.cubeLabels[cap_idx][r][c] = kociemba_letters[rubiks_labels[flat_idx]]
+
+        logger.info(f'cubeLabels filled: F={camera.cubeLabels[0][1][1]}, '
+                    f'L={camera.cubeLabels[1][1][1]}, B={camera.cubeLabels[2][1][1]}, '
+                    f'R={camera.cubeLabels[3][1][1]}, U={camera.cubeLabels[4][1][1]}, '
+                    f'D={camera.cubeLabels[5][1][1]}')
 
         cube_centers = list(range(6))
         labels_of_each_color = dict(Counter(rubiks_labels))
@@ -1183,7 +1556,7 @@ class RubiksSolver():
         # if all tests from the above are a go then go and solve the cube
         else:
             self.cubesolution = self.__generate_handwritten_solution_from_cube_state(cube_centers, rubiks_labels)
-            logger.debug(self.cubesolution)
+            logger.info(f'cube solution: {self.cubesolution}')
 
         # mark the end of the thread
         self.thread_stopper.set()
@@ -1213,7 +1586,25 @@ class RubiksSolver():
         """
         logger.debug('start thread for solving the cube')
         self.thread_stopper.clear()
-        self.thread = td.Thread(target=self.solvecube_thread)
+        def _safe_run():
+            try:
+                self.solvecube_thread()
+            except Exception as e:
+                logger.exception(f'solvecube_thread failed: {e}')
+            finally:
+                self.thread_stopper.set()
+                self.pub.publish(self.channel, {
+                    'fix_button_locked': self.__buttons_status(False),
+                    'release_button_locked': self.__buttons_status(False),
+                    'infinite_button_locked': self.__buttons_status(False),
+                    'read_button_locked': self.__buttons_status(False),
+                    'solve_button_locked': self.__buttons_status(False),
+                    'scramble_button_locked': self.__buttons_status(False),
+                    'read_status': 0,
+                    'solve_status': 0,
+                    'scramble_status': 0
+                })
+        self.thread = td.Thread(target=_safe_run)
         self.thread.start()
 
     def solvecube_thread(self):
@@ -1271,7 +1662,6 @@ class RubiksSolver():
                 'scramble_status': 0,
                 'solve_status': 100 * (idx + 1) / length
             })
-            idx += 1
 
         self.thread_stopper.set()
         self.pub.publish(self.channel, {
@@ -1299,18 +1689,36 @@ class RubiksSolver():
             scramble += " " + moves[random_move]
             prev_move = moves[random_move]
 
-        return list(scramble.strip())
+        return scramble.strip().split(' ')
 
     def scramblecube(self, event):
         """
-        Spins up the thread for solvecube_thread method.
+        Spins up the thread for scramblecube_thread method.
         :param event: Not necessary.
         :return: Nothing.
         """
         logger.debug('start thread for scramble the cube')
         self.config = event.kwargs.get('config')
         self.thread_stopper.clear()
-        self.thread = td.Thread(target=self.scramblecube_thread)
+        def _safe_run():
+            try:
+                self.scramblecube_thread()
+            except Exception as e:
+                logger.exception(f'scramblecube_thread failed: {e}')
+            finally:
+                self.thread_stopper.set()
+                self.pub.publish(self.channel, {
+                    'fix_button_locked': self.__buttons_status(False),
+                    'release_button_locked': self.__buttons_status(False),
+                    'infinite_button_locked': self.__buttons_status(False),
+                    'read_button_locked': self.__buttons_status(False),
+                    'solve_button_locked': self.__buttons_status(False),
+                    'scramble_button_locked': self.__buttons_status(False),
+                    'read_status': 0,
+                    'solve_status': 0,
+                    'scramble_status': 100
+                })
+        self.thread = td.Thread(target=_safe_run)
         self.thread.start()
 
     def scramblecube_thread(self):
@@ -1370,7 +1778,6 @@ class RubiksSolver():
                 'solve_status': 0,
                 'scramble_status':  100 * (idx + 1) / length
             })
-            idx += 1
 
         self.thread_stopper.set()
         self.pub.publish(self.channel, {
@@ -1400,19 +1807,28 @@ class RubiksSolver():
         while self.infiniteStatus:
 
             self.scramblecube(event)
-            self.thread.join()
+            self.thread.join(timeout=120)
+            if self.thread.is_alive():
+                logger.warning('scramblecube thread timed out')
+                break
             sleep(1.5)
             if not self.infiniteStatus:
                break
 
             self.readcube(event)
-            self.thread.join()
+            self.thread.join(timeout=120)
+            if self.thread.is_alive():
+                logger.warning('readcube thread timed out')
+                break
             sleep(1.5)
             if not self.infiniteStatus:
                break
 
             self.solvecube(event)
-            self.thread.join()
+            self.thread.join(timeout=300)
+            if self.thread.is_alive():
+                logger.warning('solvecube thread timed out')
+                break
             sleep(3)
             if not self.infiniteStatus:
                break
@@ -1464,6 +1880,10 @@ class RubiksSolver():
             
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Rubik\'s Cube Solver Robot')
+    parser.add_argument('--virtual', action='store_true', help='Run in virtual mode without hardware')
+    args = parser.parse_args()
+
     hldr = logging.StreamHandler(sys.stdout)
     fmt = logging.Formatter('%(asctime)s %(levelname)2s %(name)s | %(message)s')
     #hldr.setLevel(logging.DEBUG)
@@ -1479,11 +1899,22 @@ if __name__ == '__main__':
     logger_trans.addHandler(hldr)
 
     queues 		= {}
-    config_file = 'config.json'
-    camera 		= PiCameraPhotos()
+    config_file = os.environ.get('WP_RUBIKS_CONFIG', 'config.json')
+
+    # Load config to check for virtual mode (config can override --virtual flag)
+    virtual_mode = args.virtual
+    try:
+        with open(config_file, 'r') as f:
+            cfg = json.load(f)
+        if cfg.get('virtual', False):
+            virtual_mode = True
+    except Exception as e:
+        logger.warning(f'Could not load config file {config_file}: {e}')
+
+    camera 		= PiCameraPhotos(virtual=virtual_mode)
     stop_event 	= td.Event()
 
-    pivotpi = pp.PivotPi()
+    pivotpi = pp.PivotPi(virtual=virtual_mode)
 
 
     def fsm_runner():
@@ -1571,10 +2002,14 @@ if __name__ == '__main__':
     fsm_thread = td.Thread(target=fsm_runner, name='FSM Runner')
     fsm_thread.start()
 
+    mode_label = 'VIRTUAL' if virtual_mode else 'HARDWARE'
+    logger.info(f'=== Starting Rubik\'s Cube Solver in {mode_label} mode ===')
+
     try:
-        app = MainView(size='800x480', name='WASAMD - Rubik\'s Cube Solver')
+        app = MainView(size='800x480', name=f'WASAMD - Rubik\'s Cube Solver [{mode_label}]')
         app.mainloop()
     except Exception as e:
         logger.exception(e)
     finally:
+        camera.destructor()
         stop_event.set()
